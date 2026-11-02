@@ -1,0 +1,5 @@
+# Only the published calculator and its readme go to GitHub; working copies and app settings stay local.
+*
+!index.html
+!README.md
+!.gitignore

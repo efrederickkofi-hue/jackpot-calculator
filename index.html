@@ -1,0 +1,2535 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Jackpot Calculator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: the match coupon on the left with the ticket slip pinned beside it; on narrower screens the slip sits above the coupon */
+:root {
+  --paper: #F2F4F8;
+  --card: #FFFFFF;
+  --ink: #15203A;
+  --muted: #58657F;
+  --rule: #D5DBE5;
+  --print: #2445C2;
+  --print-soft: #E4EAFB;
+  --on-print: #FFFFFF;
+  --mark: #FFD23F;
+  --mark-ink: #1C1A0E;
+  --warn: #A9590B;
+  --warn-soft: #FBEEDB;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0D131F;
+    --card: #151D2C;
+    --ink: #E4E9F2;
+    --muted: #98A3B8;
+    --rule: #2A3447;
+    --print: #8AA5FF;
+    --print-soft: #1D2848;
+    --on-print: #0D131F;
+    --mark: #F2C230;
+    --mark-ink: #1C1A0E;
+    --warn: #EBA35A;
+    --warn-soft: #382816;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0D131F;
+  --card: #151D2C;
+  --ink: #E4E9F2;
+  --muted: #98A3B8;
+  --rule: #2A3447;
+  --print: #8AA5FF;
+  --print-soft: #1D2848;
+  --on-print: #0D131F;
+  --mark: #F2C230;
+  --mark-ink: #1C1A0E;
+  --warn: #EBA35A;
+  --warn-soft: #382816;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; }
+button:focus-visible, .chip:focus-visible { outline: 2px solid var(--print); outline-offset: 2px; }
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 56px;
+  display: grid;
+  gap: 28px;
+}
+
+/* Masthead */
+.masthead { display: grid; gap: 10px; max-width: 70ch; }
+.eyebrow {
+  margin: 0;
+  font-family: var(--f-data);
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--print);
+}
+h1 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(2.5rem, 1.7rem + 3vw, 3.75rem);
+  line-height: .95;
+  text-transform: uppercase;
+  letter-spacing: .01em;
+  text-wrap: balance;
+}
+.lede { margin: 0; color: var(--muted); font-size: 1.0625rem; max-width: 62ch; }
+
+h2 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  text-wrap: balance;
+}
+.label {
+  font-family: var(--f-data);
+  font-size: 11.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Two-column layout */
+.layout { display: grid; gap: 24px; align-items: start; }
+.coupon { display: grid; gap: 12px; min-width: 0; }
+@media (min-width: 1080px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: "coupon ticket"; }
+  .coupon { grid-area: coupon; }
+  .ticket {
+    grid-area: ticket;
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+  }
+}
+
+/* Ticket slip */
+.ticket {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  display: grid;
+  min-width: 0;
+}
+.slip { padding: 18px 20px; display: grid; gap: 12px; }
+.slip + .slip { border-top: 1px dashed var(--rule); }
+.slip-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+
+.stepper {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.stepper button {
+  background: var(--paper);
+  border: 0;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.stepper button:hover { color: var(--print); }
+.stepper input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-inline: 1px solid var(--rule);
+  text-align: center;
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 30px;
+  padding: 4px 0;
+  background: var(--card);
+  color: var(--ink);
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.stepper input:focus { outline: 2px solid var(--print); outline-offset: -2px; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.helper { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font-family: var(--f-data);
+  font-size: 13px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--print); }
+.chip[aria-pressed="true"] { background: var(--print); border-color: var(--print); color: var(--on-print); }
+
+.opts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+.field { display: flex; align-items: center; gap: 8px; font-size: 14.5px; }
+.field input {
+  width: 84px;
+  padding: 5px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--f-data);
+  font-size: 14px;
+  text-align: right;
+}
+.field input:focus { outline: 2px solid var(--print); outline-offset: -1px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--print); }
+
+.big {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 58px;
+  line-height: .95;
+  font-variant-numeric: tabular-nums;
+}
+.big small { font-size: .45em; font-weight: 600; color: var(--muted); margin-right: 8px; text-transform: uppercase; letter-spacing: .04em; }
+.sub { margin: 0; color: var(--muted); font-size: 15px; }
+
+.facts { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.facts div { background: var(--paper); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; }
+.facts dt { font-family: var(--f-data); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.facts dd { margin: 0; font-family: var(--f-data); font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.picklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.picklist li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 15px; }
+.li-num { font-family: var(--f-display); font-weight: 700; font-size: 18px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.li-teams { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+.empty { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+.compare { margin: 0; font-size: 14.5px; }
+.notice { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--warn-soft); font-size: 14px; }
+.notice strong { color: var(--warn); }
+
+.dist { display: grid; gap: 7px; }
+.dist-row { display: grid; grid-template-columns: 78px minmax(0, 1fr) 60px; gap: 10px; align-items: center; font-size: 14px; }
+.dist-row.all .dist-label { font-weight: 600; }
+.dist-bar { height: 10px; background: var(--paper); border-radius: 3px; overflow: hidden; }
+.dist-bar span { display: block; height: 100%; background: var(--print); border-radius: 3px; min-width: 2px; }
+.dist-val { text-align: right; font-family: var(--f-data); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* Screenshot import */
+.import {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "main actions" "status status";
+  align-items: center;
+  gap: 10px 16px;
+  padding: 16px 18px;
+  border: 1.5px dashed var(--print);
+  border-radius: 12px;
+  background: var(--card);
+}
+.import.over { background: var(--print-soft); border-style: solid; }
+.import.off { border-color: var(--rule); }
+.import-main { grid-area: main; display: grid; gap: 4px; min-width: 0; }
+.import-title { font-size: 20px; }
+.import-text { margin: 0; color: var(--muted); font-size: 14.5px; max-width: 60ch; }
+.import-actions { grid-area: actions; display: flex; flex-wrap: wrap; gap: 8px; }
+.import-status { grid-area: status; margin: 0; font-size: 14.5px; }
+.import-status[data-kind="busy"] { color: var(--print); }
+.import-status[data-kind="busy"]::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--print);
+  vertical-align: middle;
+  animation: pulse .8s ease-in-out infinite alternate;
+}
+.import-status[data-kind="error"] { color: var(--warn); }
+.import-status[data-kind="muted"] { color: var(--muted); }
+@keyframes pulse { from { opacity: .25; } to { opacity: 1; } }
+@media (max-width: 640px) {
+  .import { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "actions" "status"; }
+}
+
+/* Banner */
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--print-soft);
+  font-size: 14.5px;
+}
+.banner p { margin: 0; max-width: 72ch; }
+
+/* Coupon sheet */
+.sheet { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; }
+.game, .sheet-head {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 216px 128px 28px;
+  grid-template-areas: "num teams outcomes pick remove";
+  gap: 10px 14px;
+  align-items: center;
+  padding: 12px 14px;
+}
+.sheet-head { padding-block: 9px; background: var(--paper); border-bottom: 1px solid var(--rule); }
+.sheet-head span:nth-child(1) { grid-area: num; text-align: right; }
+.sheet-head span:nth-child(2) { grid-area: teams; }
+.sheet-head span:nth-child(3) { grid-area: outcomes; text-align: center; }
+.sheet-head span:nth-child(4) { grid-area: pick; }
+.games { list-style: none; margin: 0; padding: 0; }
+.game + .game { border-top: 1px solid var(--rule); }
+
+.num {
+  grid-area: num;
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.teams { grid-area: teams; display: grid; gap: 2px; min-width: 0; }
+.team {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.3;
+  padding: 3px 6px;
+  border-radius: 5px;
+}
+.team:hover { border-color: var(--rule); }
+.team:focus { outline: none; border-color: var(--print); background: var(--card); }
+.team::placeholder { color: var(--muted); font-weight: 400; }
+
+.outcomes { grid-area: outcomes; display: grid; grid-template-columns: repeat(3, 64px); gap: 12px; }
+.oc { display: grid; gap: 4px; text-align: center; min-width: 0; }
+.oc-label { font-family: var(--f-display); font-weight: 600; font-size: 15px; line-height: 1; color: var(--muted); }
+.odds {
+  width: 100%;
+  min-width: 0;
+  font-family: var(--f-data);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  padding: 6px 2px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+}
+.odds::placeholder { color: var(--muted); }
+.odds:focus { outline: 2px solid var(--print); outline-offset: -1px; border-color: var(--print); }
+.odds[aria-invalid="true"] { border-color: var(--warn); background: var(--warn-soft); }
+.box {
+  font-family: var(--f-data);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 0;
+  border: 1.5px solid var(--print);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--print);
+  cursor: pointer;
+}
+.box:hover { background: var(--print-soft); }
+.box[aria-pressed="true"] { background: var(--mark); border-color: var(--mark-ink); color: var(--mark-ink); font-weight: 600; }
+.box:disabled { border-color: var(--rule); color: var(--muted); background: transparent; cursor: default; }
+
+.pick { grid-area: pick; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+.badge {
+  display: inline-block;
+  min-width: 48px;
+  text-align: center;
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: .05em;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1.5px solid var(--ink);
+  color: var(--ink);
+}
+.badge.double { background: var(--print); border-color: var(--print); color: var(--on-print); }
+.badge.triple { background: var(--ink); border-color: var(--ink); color: var(--card); }
+.badge.none { border-style: dashed; border-color: var(--rule); color: var(--muted); }
+.cover { font-size: 13.5px; }
+.hint { font-size: 12.5px; color: var(--muted); }
+
+.remove {
+  grid-area: remove;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.remove:hover { color: var(--warn); background: var(--warn-soft); }
+.remove:disabled { visibility: hidden; }
+
+/* Team news */
+.game { grid-template-areas: "num teams outcomes pick remove" ". news news news news"; }
+.when { font-family: var(--f-data); font-size: 11.5px; color: var(--muted); padding: 0 7px; }
+.when:empty { display: none; }
+.news { grid-area: news; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.news-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--print);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.news-toggle::before { content: "▸"; display: inline-block; transition: transform .15s; }
+.news-toggle[aria-expanded="true"]::before { transform: rotate(90deg); }
+.news-sum { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag {
+  font-family: var(--f-data);
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+}
+.tag.home { border-color: var(--print); color: var(--print); }
+.tag.away { border-color: var(--ink); color: var(--ink); }
+.tag.error { border-color: var(--warn); color: var(--warn); }
+.news-panel { grid-column: 2 / -1; display: grid; gap: 10px; padding: 12px; border-radius: 8px; background: var(--paper); min-width: 0; }
+.factor { display: grid; grid-template-columns: 104px auto minmax(0, 1fr); align-items: center; gap: 4px 12px; }
+.factor-name { font-weight: 600; font-size: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--card); }
+.seg-btn {
+  min-width: 34px;
+  padding: 4px 6px;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--f-data);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.seg-btn:first-child { border-left: 0; }
+.seg-btn:hover { background: var(--print-soft); }
+.seg-btn[aria-pressed="true"] { background: var(--print); color: var(--on-print); }
+.seg-btn[data-v="0"][aria-pressed="true"] { background: var(--ink); color: var(--card); }
+.factor-note { margin: 0; font-size: 13.5px; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.factor-note:empty { display: none; }
+.news-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; font-size: 13px; color: var(--muted); }
+.news-meta { min-width: 0; flex: 1 1 260px; overflow-wrap: anywhere; }
+.news-meta a { color: var(--print); }
+.btn.small { font-size: 13px; padding: 5px 10px; }
+.research { border-style: solid; border-color: var(--rule); }
+.weight { display: grid; gap: 6px; }
+@media (max-width: 640px) {
+  .factor { grid-template-columns: minmax(0, 1fr) auto; }
+  .factor-note { grid-column: 1 / -1; }
+}
+
+.sheet-foot { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--rule); background: var(--paper); }
+.btn {
+  font-weight: 600;
+  font-size: 14px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--rule);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--print); color: var(--print); }
+.btn.primary { background: var(--print); border-color: var(--print); color: var(--on-print); }
+.btn.primary:hover { color: var(--on-print); filter: brightness(1.08); }
+.btn.armed, .btn.armed:hover { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+@media (max-width: 640px) {
+  .sheet-head { display: none; }
+  .game {
+    grid-template-columns: 26px minmax(0, 1fr) 28px;
+    grid-template-areas: "num teams remove" ". outcomes outcomes" ". pick pick" ". news news";
+    padding: 12px;
+  }
+  .outcomes { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .pick { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+  .big { font-size: 50px; }
+}
+
+/* Lower panels */
+.lower { display: grid; gap: 24px; align-items: start; }
+@media (min-width: 900px) { .lower { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
+.panel { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; padding: 20px; display: grid; gap: 12px; min-width: 0; }
+.panel > p { margin: 0; color: var(--muted); max-width: 68ch; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 460px; font-variant-numeric: tabular-nums; }
+th {
+  text-align: left;
+  font-family: var(--f-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rule);
+}
+td { padding: 8px 10px; border-bottom: 1px solid var(--rule); font-family: var(--f-data); font-size: 14px; }
+th.num-col, td.num-col { text-align: right; }
+tr.current td { background: var(--print-soft); }
+tr:last-child td { border-bottom: 0; }
+.linkish {
+  font-family: var(--f-data);
+  font-size: 14px;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--print);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.method dl { margin: 0; display: grid; gap: 14px; }
+.method dt { font-weight: 600; }
+.method dd { margin: 2px 0 0; color: var(--muted); font-size: 15px; }
+
+/* Track record */
+.tracker { gap: 16px; }
+.track-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.track-actions .import-status { flex: 1 1 260px; }
+.track-summary { display: grid; gap: 12px; }
+.track-facts { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.verdict { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--print-soft); font-size: 14.5px; max-width: 86ch; }
+.track-note { margin: 0; font-size: 13.5px; color: var(--muted); }
+.tcoupons { display: grid; gap: 10px; }
+.tcoupon { border: 1px solid var(--rule); border-radius: 10px; min-width: 0; }
+.tcoupon > summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 2px 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.tcoupon > summary::-webkit-details-marker { display: none; }
+.tcoupon > summary::before { content: "▸"; color: var(--print); transition: transform .15s; }
+.tcoupon > summary .tc-meta { grid-column: 2; }
+.tcoupon[open] > summary::before { transform: rotate(90deg); }
+.tcoupon > summary:focus-visible { outline: 2px solid var(--print); outline-offset: -2px; border-radius: 10px; }
+.tc-title { font-weight: 600; }
+.tc-meta { font-family: var(--f-data); font-size: 12.5px; color: var(--muted); }
+.tgames { list-style: none; margin: 0; padding: 0 14px; }
+.tgame {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 150px auto;
+  gap: 6px 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 14.5px;
+}
+.tg-teams { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+.tg-when { display: block; font-family: var(--f-data); font-size: 11.5px; color: var(--muted); }
+.tg-pick { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tgame .badge { font-size: 15px; min-width: 38px; padding: 3px 6px; }
+.badge.hit { background: var(--print); border-color: var(--print); color: var(--on-print); }
+.badge.miss { border-style: dashed; border-color: var(--warn); color: var(--warn); }
+.tc-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.learn { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--rule); }
+.learn h3 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 20px; line-height: 1.1; }
+.learn-facts { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.learn-facts .why { font-family: var(--f-body); font-size: 13.5px; font-weight: 400; color: var(--muted); line-height: 1.35; }
+@media (max-width: 640px) {
+  .tgame { grid-template-columns: 22px minmax(0, 1fr) auto; }
+  .tgame .seg { grid-column: 2 / -1; justify-self: start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="page">
+  <header class="masthead">
+    <p class="eyebrow">Football jackpot · 1 X 2</p>
+    <h1>Jackpot Calculator</h1>
+    <p class="lede">Load the coupon Claude researched for you, or one from a screenshot, check the team news for each game, then set how many lines you'll pay for. The chances come from football alone: each team's results this season and last, then form, head-to-head and injuries. Odds are never used. The calculator finds the games where a double adds the most and shows your chance of getting every game right.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="ticket" aria-label="Your ticket">
+      <section class="slip">
+        <div class="slip-head">
+          <h2>Your ticket</h2>
+          <span class="label" id="mode">Best ticket</span>
+        </div>
+        <label class="label" for="budget">Lines you'll pay for</label>
+        <div class="stepper">
+          <button type="button" id="budget-down" aria-label="Fewer lines">−</button>
+          <input type="number" id="budget" min="1" max="65536" step="1" inputmode="numeric" value="8">
+          <button type="button" id="budget-up" aria-label="More lines">+</button>
+        </div>
+        <div class="chips" id="budget-chips" role="group" aria-label="Quick line counts"></div>
+        <p class="helper">A double counts as 2 lines and a triple as 3, multiplied across the ticket.</p>
+        <div class="opts">
+          <label class="field" for="stake">Stake per line <input type="text" id="stake" inputmode="decimal" autocomplete="off" value="1"></label>
+          <label class="check" for="triples"><input type="checkbox" id="triples" checked> Allow triples</label>
+          <label class="check" for="learn"><input type="checkbox" id="learn" checked> Learn from past results</label>
+        </div>
+        <div class="weight">
+          <span class="label" id="weight-label">Team news weight</span>
+          <div class="chips" id="weight-chips" role="group" aria-labelledby="weight-label"></div>
+        </div>
+      </section>
+
+      <section class="slip" aria-live="polite">
+        <span class="label">Chance every game is right</span>
+        <p class="big" id="big">–</p>
+        <p class="sub" id="sub"></p>
+        <dl class="facts">
+          <div><dt>Lines used</dt><dd id="f-lines">–</dd></div>
+          <div><dt>Total stake</dt><dd id="f-stake">–</dd></div>
+          <div><dt>Doubles</dt><dd id="f-doubles">–</dd></div>
+          <div><dt>Triples</dt><dd id="f-triples">–</dd></div>
+        </dl>
+        <p class="compare" id="compare" hidden></p>
+        <button type="button" class="btn primary" id="reset" hidden>Use the recommended picks</button>
+        <p class="notice" id="notice" hidden></p>
+      </section>
+
+      <section class="slip">
+        <span class="label" id="doubles-label">Games to double</span>
+        <ul class="picklist" id="doubles"></ul>
+        <span class="label" id="triples-label" hidden>Games to triple</span>
+        <ul class="picklist" id="triples-list" hidden></ul>
+      </section>
+
+      <section class="slip">
+        <span class="label">How many you're likely to get right</span>
+        <div class="dist" id="dist"></div>
+      </section>
+    </aside>
+
+    <main class="coupon">
+      <section class="import" id="import" aria-labelledby="import-title">
+        <div class="import-main">
+          <h2 class="import-title" id="import-title">Load games from a screenshot</h2>
+          <p class="import-text">Drop a screenshot of your jackpot here, paste it, or choose a file. Claude reads the teams and any odds it shows, and fills in the coupon.</p>
+        </div>
+        <div class="import-actions">
+          <button type="button" class="btn primary" id="import-choose" disabled>Choose screenshot</button>
+          <button type="button" class="btn" id="import-stop" hidden>Stop</button>
+          <button type="button" class="btn" id="import-undo" hidden>Undo import</button>
+        </div>
+        <p class="import-status" id="import-status" role="status" data-kind="muted">Getting screenshot import ready…</p>
+        <input type="file" id="import-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      </section>
+      <section class="import research" id="research" aria-labelledby="research-title">
+        <div class="import-main">
+          <h2 class="import-title" id="research-title">Team news from Claude</h2>
+          <p class="import-text" id="research-text">Send a screenshot of your jackpot to Claude in the chat. Claude researches form, head-to-head and injuries for every game and adds the coupon here. It loads by itself the next time you open this page.</p>
+        </div>
+        <div class="import-actions">
+          <button type="button" class="btn primary" id="research-load" hidden>Load researched coupon</button>
+          <button type="button" class="btn" id="research-undo" hidden>Undo</button>
+        </div>
+        <p class="import-status" id="research-status" role="status" hidden></p>
+      </section>
+      <div class="banner" id="banner">
+        <p><strong>Example games.</strong> These are from your 24–25 October jackpot, with no research, so every game starts as an average home game. Rate Strength, Form, Head-to-head and Injuries under Team news, or load a coupon Claude researched.</p>
+      </div>
+      <div class="sheet">
+        <div class="sheet-head label" aria-hidden="true">
+          <span>#</span><span>Match</span><span>Coupon odds (not used) · chance</span><span>Pick</span>
+        </div>
+        <ol class="games" id="games" aria-label="Games on the coupon"></ol>
+        <div class="sheet-foot">
+          <button type="button" class="btn" id="add">+ Add game</button>
+          <button type="button" class="btn" id="clear">Clear coupon</button>
+          <button type="button" class="btn" id="example">Load example games</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <section class="panel tracker" id="tracker" aria-labelledby="tracker-title">
+    <div class="slip-head">
+      <h2 id="tracker-title">Track record</h2>
+      <span class="label" id="track-count"></span>
+    </div>
+    <p>Save each coupon before kick-off, then mark the results after the weekend, here or by asking Claude. Over a few weekends this shows how often the picks come in, whether the chances were realistic, and whether team news helps or hurts. The calculator also learns from these results, as shown at the bottom.</p>
+    <div class="track-actions">
+      <button type="button" class="btn primary" id="track-save" disabled>Track this coupon</button>
+      <p class="import-status" id="track-status" role="status" data-kind="muted">Loading the track record…</p>
+    </div>
+    <div class="track-summary" id="track-summary" hidden></div>
+    <div class="tcoupons" id="track-list"></div>
+    <div class="learn" id="learning" aria-live="polite" hidden></div>
+  </section>
+
+  <div class="lower">
+    <section class="panel">
+      <h2>What more lines buy</h2>
+      <p>Each row is the best ticket for that many lines. The chance always grows more slowly than the cost, so every extra line buys a little less.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Lines</th><th class="num-col">Chance</th><th class="num-col">%</th><th class="num-col">vs 1 line</th><th class="num-col">Stake</th></tr>
+          </thead>
+          <tbody id="ladder"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel method">
+      <h2>How it works</h2>
+      <dl>
+        <div>
+          <dt>Results model</dt>
+          <dd>Claude rates every team's attack and defence from its scores this season and last, with recent games counting more, plus each league's home advantage. That gives each game's expected goals, and the chances of a home win, draw and away win follow from how often those goal counts end each way. Tested on 2,318 past games, each predicted only from the games before it, the top pick came in 50% of the time, just as the chances said. Bookmakers' odds are never used.</dd>
+        </div>
+        <div>
+          <dt>Choosing doubles</dt>
+          <dd>It tries every mix of singles, doubles and triples that fits your lines and keeps the one most likely to get every game right. Doubles go to the closest games, where a second outcome adds the most.</dd>
+        </div>
+        <div>
+          <dt>Reading ×1.62</dt>
+          <dd>Beside a single, "Doubling ×1.62" means a double there would make the whole ticket 1.62 times as likely to win, for twice the lines.</dd>
+        </div>
+        <div>
+          <dt>Team news</dt>
+          <dd>Each game has form, head-to-head and injury ratings, filled in by research or by you, on top of the results model. On a typical game, one step moves the home or away chance by about 4 points for form or injuries and 2 for head-to-head. A game without a results model also has a Strength rating, for the gap between the two teams, worth about 8 points a step. Set Team news weight to Off to see the results model alone.</dd>
+        </div>
+        <div>
+          <dt>Research</dt>
+          <dd>Send your jackpot screenshot to Claude in the chat. Claude works out each game's expected goals from the latest results, reads recent previews, injury lists and head-to-head records, sets the ratings with a note and sources for each, and adds the coupon to this page. Previews can be wrong or out of date, so read the notes.</dd>
+        </div>
+        <div>
+          <dt>Track record</dt>
+          <dd>Each tracked coupon keeps the chances the calculator gave, from the results model alone and with team news. Once results are in, it compares how often the top picks came in with how often the chances said they would, and scores both with the Brier score: lower is better, and calling every game a third each scores 0.667. A few weekends swing a lot by luck, so judge team news only after 40 or more games.</dd>
+        </div>
+        <div>
+          <dt>Learning from results</dt>
+          <dd>The calculator checks its chances against the results of your tracked coupons and learns three corrections: whether its favourites win more or less often than it said, whether draws do, and how much team news is really worth. Each one starts at no change and moves only as far as the results clearly support, so a lucky or unlucky weekend can't throw it off. Untick Learn from past results to see the chances without them.</dd>
+        </div>
+        <div>
+          <dt>Coupon odds</dt>
+          <dd>You can type in the coupon's odds, or a screenshot fills them in, but they play no part in the chances or the picks. They are only kept with a tracked coupon so the Monday report can show, after the games, how the bookmakers would have done by comparison.</dd>
+        </div>
+        <div>
+          <dt>Your own judgement</dt>
+          <dd>Change any rating under Team news, or click the percentage boxes to change a pick. The ticket shows what your version costs and how it compares.</dd>
+        </div>
+        <div>
+          <dt>Screenshot import</dt>
+          <dd>Claude reads the team names, kick-off times and any odds from your screenshot, using your own Claude account. It can misread, so check the teams.</dd>
+        </div>
+        <div>
+          <dt>Lines and cost</dt>
+          <dd>This assumes your jackpot charges per combination. If it prices doubles differently, use the chances and ignore the stake.</dd>
+        </div>
+      </dl>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const OUT = ['1', 'X', '2'];
+  const OUT_NAME = ['home win', 'draw', 'away win'];
+  const MAX_GAMES = 30;
+  const MAX_LINES = 65536;
+  const KEY = 'jackpot-calculator-v1';
+  const CHIPS = [1, 4, 8, 16, 32, 64];
+  const LADDER = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+  const EXAMPLE = [
+    ['Coventry City', 'Fulham', 2.80, 3.30, 2.55],
+    ['Napoli', 'Roma', 2.05, 3.30, 3.70],
+    ['Valencia', 'Villarreal', 2.90, 3.30, 2.45],
+    ['Lens', 'Paris FC', 1.70, 3.80, 4.80],
+    ['PSV Eindhoven', 'Feyenoord', 1.75, 4.00, 4.10],
+    ['Genoa', 'Venezia FC', 2.10, 3.20, 3.60],
+    ['Monaco', 'Lille', 2.20, 3.50, 3.10],
+    ['Crystal Palace', 'Newcastle', 2.75, 3.40, 2.50],
+    ['Liverpool', 'Brighton', 1.45, 4.80, 6.50],
+    ['Hoffenheim', 'Bayer Leverkusen', 2.70, 3.70, 2.45],
+    ['Celta', 'Betis', 2.40, 3.30, 2.95],
+    ['Sunderland AFC', 'Leeds United', 2.45, 3.20, 2.95],
+  ];
+
+  const $ = id => document.getElementById(id);
+  const list = $('games');
+
+  const EXAMPLE_WHEN = [
+    '24/10 14:00', '24/10 16:00', '24/10 16:30', '24/10 18:45', '25/10 13:30', '25/10 14:00',
+    '25/10 14:00', '25/10 14:00', '25/10 14:00', '25/10 14:30', '25/10 15:15', '25/10 16:30',
+  ];
+  // Each rating step raises the home side's expected goals and lowers the away side's by `weight`
+  // (log scale), before the weight setting. Strength only counts on a game without a results model,
+  // since the model already rates the two teams.
+  const FACTORS = [
+    { key: 'strength', label: 'Strength', short: 'Strength', weight: 0.13, unmodelled: true },
+    { key: 'form', label: 'Form', short: 'Form', weight: 0.065 },
+    { key: 'h2h', label: 'Head-to-head', short: 'H2H', weight: 0.03 },
+    { key: 'injuries', label: 'Injuries', short: 'Injuries', weight: 0.065 },
+  ];
+  const MAX_SHIFT = 0.6;
+  const WEIGHTS = { off: 0, light: 0.5, normal: 1, strong: 1.6 };
+  const WEIGHT_LABELS = { off: 'Off', light: 'Light', normal: 'Normal', strong: 'Strong' };
+  const RATINGS = [
+    { v: 2, short: 'H+', long: 'Strong home edge', side: 'Strong home' },
+    { v: 1, short: 'H', long: 'Home edge', side: 'Home' },
+    { v: 0, short: '=', long: 'Even', side: 'Even' },
+    { v: -1, short: 'A', long: 'Away edge', side: 'Away' },
+    { v: -2, short: 'A+', long: 'Strong away edge', side: 'Strong away' },
+  ];
+
+  const newId = () => Math.random().toString(36).slice(2, 10);
+  const exampleGames = () => EXAMPLE.map(([home, away, ...o], i) => ({
+    id: newId(), home, away, when: EXAMPLE_WHEN[i], odds: o.map(n => n.toFixed(2)), news: null, model: null,
+  }));
+  const emptyGame = () => ({ id: newId(), home: '', away: '', when: '', odds: ['', '', ''], news: null, model: null });
+
+  function clampBudget(v) {
+    const n = Math.floor(Number(v));
+    if (!(n >= 1)) return 1;
+    return Math.min(n, MAX_LINES);
+  }
+
+  function sanitize(s) {
+    if (!s || !Array.isArray(s.games) || !s.games.length) return null;
+    const games = s.games.slice(0, MAX_GAMES).map(g => ({
+      id: g && typeof g.id === 'string' && g.id ? g.id : newId(),
+      home: g && typeof g.home === 'string' ? g.home : '',
+      away: g && typeof g.away === 'string' ? g.away : '',
+      when: g && typeof g.when === 'string' ? g.when.slice(0, 40) : '',
+      odds: [0, 1, 2].map(k => (g && Array.isArray(g.odds) && typeof g.odds[k] === 'string') ? g.odds[k] : ''),
+      news: g ? sanitizeNews(g.news) : null,
+      model: g ? sanitizeModel(g.model) : null,
+    }));
+    const custom = Array.isArray(s.custom) && s.custom.length === games.length
+      ? s.custom.map(c => Array.isArray(c) ? c.filter(o => o === 0 || o === 1 || o === 2) : null)
+      : null;
+    return {
+      games,
+      budget: clampBudget(s.budget),
+      stake: typeof s.stake === 'string' ? s.stake : '1',
+      triples: s.triples !== false,
+      custom,
+      example: !!s.example,
+      newsWeight: Object.prototype.hasOwnProperty.call(WEIGHTS, s.newsWeight) ? s.newsWeight : 'normal',
+      researchId: typeof s.researchId === 'string' ? s.researchId : '',
+      autoLoaded: typeof s.autoLoaded === 'string' ? s.autoLoaded : '',
+      learn: s.learn !== false,
+    };
+  }
+
+  let state = null;
+  try { state = sanitize(JSON.parse(localStorage.getItem(KEY))); } catch (e) { state = null; }
+  if (!state) state = { games: exampleGames(), budget: 8, stake: '1', triples: true, custom: null, example: true, newsWeight: 'normal', researchId: '', autoLoaded: '', learn: true };
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+  }
+
+  // ---- Maths ----
+
+  // Accepts decimal odds (2.45 or 2,45) and fractional odds (7/4).
+  function parseOdds(raw) {
+    const s = String(raw || '').trim().replace(',', '.');
+    if (!s) return NaN;
+    if (s.includes('/')) {
+      const [n, d] = s.split('/').map(Number);
+      return n >= 0 && d > 0 ? 1 + n / d : NaN;
+    }
+    if (!/^\d*\.?\d+$/.test(s)) return NaN;
+    return Number(s);
+  }
+
+  // The chances come from expected goals: Claude's results model (attack and defence ratings from
+  // each team's scores) when a game has one, else an average home game. Odds are never used here.
+  // Tested on 2,318 league games, each predicted from earlier games only, with the draw boost below.
+  const DEFAULT_XG = [1.55, 1.25]; // average home and away goals over two seasons in six leagues
+  const DRAW_BOOST = 1.05; // independent scores slightly undercount draws
+  const MAX_GOALS = 10;
+
+  function sanitizeModel(m) {
+    if (!m || typeof m !== 'object' || !Array.isArray(m.xg) || m.xg.length !== 2) return null;
+    const xg = m.xg.map(Number);
+    if (xg.some(x => !(x >= 0.1 && x <= 5))) return null;
+    return { xg, note: typeof m.note === 'string' ? m.note.trim().slice(0, 280) : '' };
+  }
+
+  // Home, draw and away chances when the two sides expect xh and xa goals.
+  function goalsChances(xg) {
+    const pois = l => { const p = [Math.exp(-l)]; for (let k = 1; k <= MAX_GOALS; k++) p.push(p[k - 1] * l / k); return p; };
+    const a = pois(xg[0]), b = pois(xg[1]);
+    let h = 0, d = 0, w = 0;
+    for (let i = 0; i <= MAX_GOALS; i++) {
+      for (let j = 0; j <= MAX_GOALS; j++) {
+        const p = a[i] * b[j];
+        if (i > j) h += p; else if (i === j) d += p; else w += p;
+      }
+    }
+    d *= DRAW_BOOST;
+    const s = h + d + w;
+    return [h / s, d / s, w / s];
+  }
+
+  // A game's starting point before team news: { xg, p, modelled }.
+  function baseOf(game) {
+    const xg = game.model ? game.model.xg : DEFAULT_XG;
+    return { xg, p: goalsChances(xg), modelled: !!game.model };
+  }
+
+  // Coupon odds are kept only so a tracked coupon can be compared with the bookmakers afterwards.
+  // Removes the bookmaker margin so the three chances add up to 1.
+  function fair(game) {
+    const o = game.odds.map(parseOdds);
+    if (o.some(x => !(x > 1))) return null;
+    const inv = o.map(x => 1 / x);
+    const sum = inv[0] + inv[1] + inv[2];
+    return { p: shin(inv, sum), margin: sum - 1 };
+  }
+
+  // Shin's method: bookmakers put more margin on long shots than on favourites, so this takes
+  // more off the long shots than scaling all three equally would. z is found by bisection.
+  function shin(inv, sum) {
+    const scaled = () => inv.map(x => x / sum);
+    if (sum <= 1) return scaled();
+    const at = z => inv.map(q => (Math.sqrt(z * z + 4 * (1 - z) * q * q / sum) - z) / (2 * (1 - z)));
+    const total = z => at(z).reduce((a, b) => a + b, 0);
+    let lo = 0, hi = 0.9;
+    if (total(hi) > 1) return scaled();
+    for (let k = 0; k < 60; k++) {
+      const mid = (lo + hi) / 2;
+      if (total(mid) > 1) lo = mid; else hi = mid;
+    }
+    const p = at((lo + hi) / 2);
+    const t = p[0] + p[1] + p[2];
+    return p.map(x => x / t);
+  }
+
+  const rank = p => [0, 1, 2].sort((a, b) => p[b] - p[a]);
+
+  // Team news moves expected goals from one side to the other, capped so a pile of ratings can't run away.
+  // Strength is skipped when the game has a results model.
+  const capShift = s => Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, s));
+  function newsShift(news, weight, modelled) {
+    if (!news || !weight) return 0;
+    return capShift(FACTORS.reduce((sum, f) => sum + (f.unmodelled && modelled ? 0 : f.weight * (news[f.key] || 0)), 0) * weight);
+  }
+  const shiftGoals = (xg, s) => s ? [xg[0] * Math.exp(s), xg[1] * Math.exp(-s)] : xg;
+
+  function rating(v) {
+    const n = Math.round(Number(v));
+    return n >= -2 && n <= 2 ? n : 0;
+  }
+  function emptyNews() {
+    return { strength: 0, form: 0, h2h: 0, injuries: 0, notes: { strength: '', form: '', h2h: '', injuries: '' }, sources: [], at: 0, status: '', error: '' };
+  }
+  // Used for saved data and for research replies, so it trusts nothing.
+  function sanitizeNews(n) {
+    if (!n || typeof n !== 'object' || Array.isArray(n)) return null;
+    const out = emptyNews();
+    for (const { key } of FACTORS) {
+      out[key] = rating(n[key]);
+      out.notes[key] = n.notes && typeof n.notes[key] === 'string' ? n.notes[key].trim().slice(0, 280) : '';
+    }
+    out.sources = Array.isArray(n.sources)
+      ? n.sources.filter(u => typeof u === 'string' && /^https?:\/\/[^\s"'<>]+$/i.test(u)).slice(0, 4).map(u => u.slice(0, 400))
+      : [];
+    out.at = Number(n.at) > 0 ? Number(n.at) : 0;
+    out.status = n.status === 'done' || n.status === 'error' ? n.status : '';
+    out.error = typeof n.error === 'string' ? n.error.slice(0, 200) : '';
+    return out;
+  }
+  const hasRatings = n => !!n && FACTORS.some(f => n[f.key] !== 0);
+
+  // Best mix of singles, doubles and triples within the line budget.
+  // Lines are always 2^a * 3^b, so states are keyed by (a, b).
+  function optimise(probs, budget, triples) {
+    let states = [{ a: 0, b: 0, lines: 1, lp: 0, picks: [] }];
+    for (const p of probs) {
+      const opts = [];
+      if (!p) {
+        opts.push({ mult: 1, da: 0, db: 0, lp: 0, pick: null });
+      } else {
+        const r = rank(p);
+        opts.push({ mult: 1, da: 0, db: 0, lp: Math.log(p[r[0]]), pick: [r[0]] });
+        opts.push({ mult: 2, da: 1, db: 0, lp: Math.log(p[r[0]] + p[r[1]]), pick: [r[0], r[1]] });
+        if (triples) opts.push({ mult: 3, da: 0, db: 1, lp: 0, pick: [0, 1, 2] });
+      }
+      const next = new Map();
+      for (const s of states) {
+        for (const o of opts) {
+          const lines = s.lines * o.mult;
+          if (lines > budget) continue;
+          const a = s.a + o.da, b = s.b + o.db, key = a * 1000 + b;
+          const lp = s.lp + o.lp;
+          const cur = next.get(key);
+          if (!cur || lp > cur.lp + 1e-12) next.set(key, { a, b, lines, lp, picks: s.picks.concat([o.pick]) });
+        }
+      }
+      states = [...next.values()];
+    }
+    let best = null;
+    for (const s of states) {
+      if (!best || s.lp > best.lp + 1e-12 || (Math.abs(s.lp - best.lp) <= 1e-12 && s.lines < best.lines)) best = s;
+    }
+    return best.picks.map(pk => pk && pk.slice().sort((x, y) => x - y));
+  }
+
+  function evaluate(picks, probs) {
+    let lines = 1, prob = 1;
+    const covers = [];
+    probs.forEach((p, i) => {
+      if (!p) return;
+      const pk = picks[i];
+      const c = pk.reduce((s, o) => s + p[o], 0);
+      lines *= pk.length;
+      prob *= c;
+      covers.push(c);
+    });
+    return { picks, lines, prob, covers };
+  }
+
+  function customPicks(probs) {
+    return probs.map((p, i) => {
+      if (!p) return null;
+      const c = state.custom[i];
+      return c && c.length ? c.slice().sort((x, y) => x - y) : [rank(p)[0]];
+    });
+  }
+
+  // Chance of exactly k games right, for k = 0..n.
+  function distribution(covers) {
+    let d = [1];
+    for (const c of covers) {
+      const nd = new Array(d.length + 1).fill(0);
+      d.forEach((v, k) => { nd[k] += v * (1 - c); nd[k + 1] += v * c; });
+      d = nd;
+    }
+    return d;
+  }
+
+  function lineSteps(triples) {
+    const out = [];
+    for (let a = 1; a <= MAX_LINES; a *= 2) {
+      if (!triples) { out.push(a); continue; }
+      for (let n = a; n <= MAX_LINES; n *= 3) out.push(n);
+    }
+    return out.sort((x, y) => x - y);
+  }
+
+  // ---- Learning from results ----
+  // Three corrections fitted to the results of tracked coupons. Each starts at "no change" and moves
+  // only as far as the results support, so a lucky or unlucky weekend can't throw the chances off:
+  //   sharp: a power on the model's chances; above 1 means its favourites won more often than it said
+  //   draw:  a multiplier on the draw chance
+  //   news:  a multiplier on the team-news shift
+  const NO_LEARNING = { sharp: 1, draw: 1, news: 1 };
+  const PRIOR_SD = { sharp: 0.1, draw: 0.1, news: 0.5 }; // draw is on the log scale
+
+  function calibrate(p, L) {
+    if (L.sharp === 1 && L.draw === 1) return p;
+    const q = p.map(x => Math.pow(Math.max(x, 1e-6), L.sharp));
+    q[1] *= L.draw;
+    const sum = q[0] + q[1] + q[2];
+    return q.map(x => x / sum);
+  }
+  // Expected goals to the chances the picks use: the team news (`shift` is newsShift at your weight,
+  // scaled by what the results say team news is worth), then the learned corrections.
+  function predict(xg, shift, L) {
+    return calibrate(goalsChances(shiftGoals(xg, capShift(shift * L.news))), L);
+  }
+
+  // Golden-section search for the peak of f on [lo, hi].
+  function peak(f, lo, hi) {
+    const g = (Math.sqrt(5) - 1) / 2;
+    let a = lo, b = hi, c = b - g * (b - a), d = a + g * (b - a), fc = f(c), fd = f(d);
+    for (let k = 0; k < 40; k++) {
+      if (fc > fd) { b = d; d = c; fd = fc; c = b - g * (b - a); fc = f(c); }
+      else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = f(d); }
+    }
+    return (a + b) / 2;
+  }
+  // How sure the fit is: the standard error from the curvature at the peak.
+  function spread(f, x) {
+    const h = 1e-3, c = (f(x + h) - 2 * f(x) + f(x - h)) / (h * h);
+    return c < 0 ? 1 / Math.sqrt(-c) : Infinity;
+  }
+
+  // Tracked coupons may be written by Claude or another copy of the page, so anything malformed is
+  // skipped. Only games tracked with expected goals count, so coupons from the old odds-based method
+  // never feed the learning.
+  //   coupons: [{ weight, games: [{ xg: [home, away], shift, result }] }], shift being the team-news
+  //            shift at weight 1
+  function learningInputs(coupons) {
+    const market = [], news = [];
+    for (const c of coupons) {
+      if (!c || !Array.isArray(c.games)) continue;
+      const w = Object.prototype.hasOwnProperty.call(WEIGHTS, c.weight) ? WEIGHTS[c.weight] : 1;
+      for (const g of c.games) {
+        const r = g && g.result;
+        const xg = g && Array.isArray(g.xg) && g.xg.length === 2 && g.xg.every(x => x >= 0.1 && x <= 5) ? g.xg : null;
+        if (!xg || !(r === 0 || r === 1 || r === 2)) continue;
+        market.push({ p: goalsChances(xg), r, n: 1 });
+        const s = Number(g.shift) * w;
+        if (Number.isFinite(s) && Math.abs(s) > 1e-4) news.push({ xg, s, r });
+      }
+    }
+    return { market, news, source: 'coupons' };
+  }
+
+  // Each correction maximises the likelihood of what happened plus a pull towards "no change".
+  const loglik = (q, r) => Math.log(Math.max(q[r], 1e-9));
+  function learnMarket(market) {
+    let sharp = 1, logDraw = 0;
+    const fit = (a, ld) => market.reduce((s, g) => s + g.n * loglik(calibrate(g.p, { sharp: a, draw: Math.exp(ld) }), g.r), 0);
+    const fa = a => fit(a, logDraw) - (a - 1) ** 2 / (2 * PRIOR_SD.sharp ** 2);
+    const fd = ld => fit(sharp, ld) - ld ** 2 / (2 * PRIOR_SD.draw ** 2);
+    if (market.length) {
+      for (let k = 0; k < 4; k++) { sharp = peak(fa, 0.6, 1.6); logDraw = peak(fd, -0.5, 0.5); }
+    }
+    return { sharp, draw: Math.exp(logDraw), games: market.reduce((s, g) => s + g.n, 0), se: { sharp: spread(fa, sharp), draw: spread(fd, logDraw) } };
+  }
+  function learnNews(news, m) {
+    const base = { sharp: m.sharp, draw: m.draw };
+    const fw = w => news.reduce((s, g) => s + loglik(predict(g.xg, g.s, { ...base, news: w }), g.r), 0) -
+      (w - 1) ** 2 / (2 * PRIOR_SD.news ** 2);
+    const w = news.length ? peak(fw, 0, 2.5) : 1;
+    return { news: w, newsGames: news.length, se: spread(fw, w) };
+  }
+  const combine = (m, n, source) => ({
+    sharp: m.sharp, draw: m.draw, news: n.news, source, games: m.games, newsGames: n.newsGames, se: { ...m.se, news: n.se },
+  });
+  function learn({ market, news, source }) {
+    const m = learnMarket(market);
+    return combine(m, learnNews(news, m), source);
+  }
+
+  // ---- Formatting ----
+
+  function pct(p, digits) {
+    const v = p * 100;
+    if (v > 0 && v < 0.01) return '<0.01%';
+    const d = digits !== undefined ? digits : v >= 10 ? 0 : v >= 1 ? 1 : 2;
+    return v.toFixed(d) + '%';
+  }
+  function oneIn(p) {
+    if (!(p > 0)) return '–';
+    const v = 1 / p;
+    return v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString();
+  }
+  const fmtInt = n => Number(n).toLocaleString();
+  function stakeValue() { return parseFloat(String(state.stake).replace(',', '.')); }
+  function money(x) {
+    if (!isFinite(x)) return '–';
+    return x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  const pickLabel = pk => pk.map(o => OUT[o]).join('');
+  const pickClass = pk => pk.length === 1 ? 'single' : pk.length === 2 ? 'double' : 'triple';
+  function matchName(i) {
+    const g = state.games[i];
+    return `${g.home.trim() || 'Home'} v ${g.away.trim() || 'Away'}`;
+  }
+  function joinNums(nums) {
+    if (nums.length === 1) return `Game ${nums[0]}`;
+    return `Games ${nums.slice(0, -1).join(', ')} and ${nums[nums.length - 1]}`;
+  }
+  function esc(s) {
+    return s.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  }
+
+  // ---- Coupon rows ----
+
+  function rowEl(g, i) {
+    const n = i + 1;
+    const li = document.createElement('li');
+    li.className = 'game';
+    li.dataset.i = i;
+    li.innerHTML = `
+      <span class="num" aria-hidden="true">${n}</span>
+      <div class="teams">
+        <input class="team" id="home-${n}" data-side="home" aria-label="Game ${n} home team" placeholder="Home team" autocomplete="off">
+        <input class="team" id="away-${n}" data-side="away" aria-label="Game ${n} away team" placeholder="Away team" autocomplete="off">
+        <span class="when"></span>
+      </div>
+      <div class="outcomes">
+        ${[0, 1, 2].map(o => `
+          <div class="oc">
+            <span class="oc-label" aria-hidden="true">${OUT[o]}</span>
+            <input class="odds" id="odds-${n}-${OUT[o]}" data-o="${o}" inputmode="decimal" autocomplete="off" aria-label="Game ${n} ${OUT_NAME[o]} coupon odds, not used for the chances" title="Coupon odds: kept for comparison only, never used for the chances" placeholder="–">
+            <button type="button" class="box" data-o="${o}"></button>
+          </div>`).join('')}
+      </div>
+      <div class="pick"></div>
+      <button type="button" class="remove" aria-label="Remove game ${n}" title="Remove game">×</button>
+      <div class="news">
+        <button type="button" class="news-toggle" aria-expanded="false" aria-controls="news-${n}">Team news</button>
+        <span class="news-sum"></span>
+      </div>
+      <div class="news-panel" id="news-${n}" hidden>
+        ${FACTORS.map(f => `
+          <div class="factor" data-f="${f.key}">
+            <span class="factor-name">${f.label}</span>
+            <div class="seg" role="group" aria-label="${f.label}, game ${n}">
+              ${RATINGS.map(r => `<button type="button" class="seg-btn" data-v="${r.v}" aria-pressed="false" aria-label="${r.long}" title="${r.long}">${r.short}</button>`).join('')}
+            </div>
+            <p class="factor-note"></p>
+          </div>`).join('')}
+        <div class="news-foot">
+          <span class="news-meta"></span>
+        </div>
+      </div>`;
+    li.dataset.id = g.id;
+    li.querySelector('.when').textContent = g.when;
+    const open = openNews.has(g.id);
+    li.querySelector('.news-panel').hidden = !open;
+    li.querySelector('.news-toggle').setAttribute('aria-expanded', String(open));
+    li.querySelector('[data-side="home"]').value = g.home;
+    li.querySelector('[data-side="away"]').value = g.away;
+    li.querySelectorAll('.odds').forEach((inp, o) => { inp.value = g.odds[o]; });
+    return li;
+  }
+
+  const openNews = new Set();
+
+  function newsSummary(g) {
+    const n = g.news;
+    const tags = [];
+    if (n && n.status === 'error') tags.push('<span class="tag error">Research failed</span>');
+    const rated = n ? FACTORS.filter(f => n[f.key] !== 0 && !(f.unmodelled && g.model)) : [];
+    for (const f of rated) {
+      const r = RATINGS.find(x => x.v === n[f.key]);
+      tags.push(`<span class="tag ${r.v > 0 ? 'home' : 'away'}">${f.short}: ${r.side}</span>`);
+    }
+    if (!rated.length) tags.push(`<span class="tag">${n && n.status === 'done' ? 'No clear edge' : 'Not rated'}</span>`);
+    return tags.join('');
+  }
+
+  function newsMeta(g, b, adj) {
+    const n = g.news;
+    const parts = [];
+    const goals = `${b.xg[0].toFixed(2)}–${b.xg[1].toFixed(2)}`;
+    parts.push(b.modelled
+      ? `Results model: expected goals ${goals}, so ${b.p.map(x => pct(x, 0)).join(' · ')}.${g.model.note ? ` ${esc(g.model.note)}` : ''}`
+      : `No results model yet, so this starts as an average home game (${b.p.map(x => pct(x, 0)).join(' · ')}). Rate Strength for the gap between the teams.`);
+    if (adj && b.p.some((x, k) => Math.abs(x - adj[k]) >= 0.005)) {
+      const label = activeLearning().games ? (newsShift(n, WEIGHTS[state.newsWeight], b.modelled) ? 'With team news and past results' : 'Tuned by past results') : 'With team news';
+      parts.push(`${label}: ${adj.map(x => pct(x, 0)).join(' · ')}.`);
+    } else if (state.newsWeight === 'off' && hasRatings(n)) {
+      parts.push('Team news weight is off, so these ratings are not used.');
+    }
+    if (n && n.status === 'error' && n.error) parts.push(esc(n.error));
+    if (n && n.at) {
+      const links = n.sources.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(u))}</a>`).join(', ');
+      const day = new Date(n.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+      parts.push(`Researched ${day}${links ? ` from ${links}` : ''}.`);
+    }
+    return parts.join(' ');
+  }
+
+  function buildRows() {
+    list.replaceChildren(...state.games.map(rowEl));
+  }
+
+  function updateRows(probs, ticket, base) {
+    const only = state.games.length === 1;
+    [...list.children].forEach((li, i) => {
+      const g = state.games[i];
+      const p = probs[i];
+      const picks = ticket.picks[i];
+      li.querySelectorAll('.odds').forEach((inp, o) => {
+        const raw = g.odds[o].trim();
+        inp.setAttribute('aria-invalid', raw !== '' && !(parseOdds(raw) > 1) ? 'true' : 'false');
+      });
+      li.querySelectorAll('.box').forEach((b, o) => {
+        if (!p) {
+          b.disabled = true;
+          b.textContent = '–';
+          b.setAttribute('aria-pressed', 'false');
+          b.setAttribute('aria-label', `Game ${i + 1} ${OUT_NAME[o]}: enter all three odds first`);
+          return;
+        }
+        b.disabled = false;
+        b.textContent = pct(p[o], 0);
+        b.setAttribute('aria-pressed', picks.includes(o) ? 'true' : 'false');
+        b.setAttribute('aria-label', `Game ${i + 1}: pick ${OUT_NAME[o]}, ${pct(p[o], 0)} chance`);
+      });
+      const pickEl = li.querySelector('.pick');
+      if (!p) {
+        pickEl.innerHTML = '<span class="badge none">–</span><span class="hint">Needs all three odds</span>';
+      } else {
+        const cover = picks.reduce((s, o) => s + p[o], 0);
+        let hint;
+        if (picks.length === 1) {
+          const extra = Math.max(...[0, 1, 2].filter(o => o !== picks[0]).map(o => p[o]));
+          hint = `Doubling ×${((p[picks[0]] + extra) / p[picks[0]]).toFixed(2)}`;
+        } else if (picks.length === 2) {
+          hint = `Doubled ×${(cover / Math.max(p[picks[0]], p[picks[1]])).toFixed(2)}`;
+        } else {
+          hint = 'Every result covered';
+        }
+        pickEl.innerHTML = `<span class="badge ${pickClass(picks)}">${pickLabel(picks)}</span>` +
+          `<span class="cover">Covers ${pct(cover, 0)}</span><span class="hint">${hint}</span>`;
+      }
+      li.querySelector('.news-sum').innerHTML = newsSummary(g);
+      li.querySelectorAll('.factor').forEach(fe => {
+        const key = fe.dataset.f;
+        fe.hidden = key === 'strength' && !!g.model; // the results model already rates the two teams
+        const v = g.news ? g.news[key] : 0;
+        fe.querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', Number(b.dataset.v) === v ? 'true' : 'false'));
+        fe.querySelector('.factor-note').textContent = g.news ? g.news.notes[key] : '';
+      });
+      li.querySelector('.news-meta').innerHTML = newsMeta(g, base[i], p);
+      li.querySelector('.remove').disabled = only;
+    });
+  }
+
+  // ---- Ticket slip ----
+
+  function renderList(ul, labelEl, items, emptyText) {
+    if (!items.length) {
+      ul.innerHTML = emptyText ? `<li class="empty">${emptyText}</li>` : '';
+      return;
+    }
+    ul.innerHTML = items.map(({ i, pk }) =>
+      `<li><span class="li-num">${i + 1}</span><span class="li-teams">${esc(matchName(i))}</span>` +
+      `<span class="badge ${pickClass(pk)}">${pickLabel(pk)}</span></li>`).join('');
+  }
+
+  function renderTicket(probs, ticket) {
+    const valid = probs.map((p, i) => p ? i : -1).filter(i => i >= 0);
+    const missing = probs.map((p, i) => p ? -1 : i + 1).filter(n => n > 0);
+    $('mode').textContent = state.custom ? 'Your edited picks' : `Best for ${fmtInt(state.budget)} line${state.budget === 1 ? '' : 's'}`;
+
+    const doubles = [], triples = [];
+    ticket.picks.forEach((pk, i) => {
+      if (!pk) return;
+      if (pk.length === 2) doubles.push({ i, pk });
+      if (pk.length === 3) triples.push({ i, pk });
+    });
+
+    if (!valid.length) {
+      $('big').textContent = '–';
+      $('sub').textContent = 'Enter all three odds for at least one game to see your chance.';
+      ['f-lines', 'f-stake', 'f-doubles', 'f-triples'].forEach(id => { $(id).textContent = '–'; });
+    } else {
+      $('big').innerHTML = `<small>1 in</small>${oneIn(ticket.prob)}`;
+      const rated = valid.filter(i => hasRatings(state.games[i].news)).length;
+      const modelled = valid.filter(i => state.games[i].model).length;
+      const modelNote = modelled === valid.length ? ' From the results model.'
+        : modelled ? ` ${modelled} of ${valid.length} games have a results model.` : ' No results model yet.';
+      const newsNote = state.newsWeight === 'off' ? ' Team news is off.'
+        : rated ? ` Team news adjusts ${rated} game${rated === 1 ? '' : 's'}.` : '';
+      const L = activeLearning();
+      const learnNote = L.games ? ` Tuned by ${fmtInt(L.games)} past results.` : '';
+      $('sub').textContent = `${pct(ticket.prob)} chance that all ${valid.length} game${valid.length === 1 ? ' is' : 's are'} right.${modelNote}${newsNote}${learnNote}`;
+      $('f-lines').textContent = fmtInt(ticket.lines);
+      $('f-stake').textContent = money(ticket.lines * stakeValue());
+      $('f-doubles').textContent = doubles.length;
+      $('f-triples').textContent = triples.length;
+    }
+
+    const compare = $('compare');
+    if (state.custom && valid.length) {
+      const best = evaluate(optimise(probs, ticket.lines, state.triples), probs);
+      compare.hidden = false;
+      compare.textContent = best.prob <= ticket.prob * (1 + 1e-9)
+        ? `Your picks are the best possible ticket for ${fmtInt(ticket.lines)} lines.`
+        : `The best ticket for ${fmtInt(ticket.lines)} lines is 1 in ${oneIn(best.prob)}.`;
+    } else {
+      compare.hidden = true;
+    }
+    $('reset').hidden = !state.custom;
+
+    const notice = $('notice');
+    if (missing.length && valid.length) {
+      notice.hidden = false;
+      notice.innerHTML = `<strong>${joinNums(missing)} ${missing.length === 1 ? 'needs' : 'need'} all three odds.</strong> ` +
+        `${missing.length === 1 ? 'It is' : 'They are'} left out of the chance above.`;
+    } else {
+      notice.hidden = true;
+    }
+
+    $('doubles-label').textContent = state.custom ? 'Your doubles' : 'Games to double';
+    const noDoubles = !valid.length ? 'Enter odds to see which games to double.'
+      : state.custom ? 'No doubles on your ticket.'
+      : 'No doubles fit in this many lines. Add lines to cover the closest games.';
+    renderList($('doubles'), $('doubles-label'), doubles, noDoubles);
+    $('triples-label').hidden = !triples.length;
+    $('triples-list').hidden = !triples.length;
+    renderList($('triples-list'), $('triples-label'), triples, '');
+
+    const dist = $('dist');
+    if (!valid.length) {
+      dist.innerHTML = '<p class="empty">Shows up once you enter odds.</p>';
+    } else {
+      const d = distribution(ticket.covers);
+      const n = ticket.covers.length;
+      const rows = [];
+      for (let k = n; k >= Math.max(0, n - 3); k--) rows.push({ label: k === n ? `All ${n}` : String(k), p: d[k], all: k === n });
+      if (n - 4 >= 0) rows.push({ label: `${n - 4} or fewer`, p: d.slice(0, n - 3).reduce((a, b) => a + b, 0) });
+      const max = Math.max(...rows.map(r => r.p)) || 1;
+      dist.innerHTML = rows.map(r =>
+        `<div class="dist-row${r.all ? ' all' : ''}"><span class="dist-label">${r.label}</span>` +
+        `<span class="dist-bar"><span style="width:${(r.p / max * 100).toFixed(1)}%"></span></span>` +
+        `<span class="dist-val">${pct(r.p)}</span></div>`).join('');
+    }
+  }
+
+  function renderLadder(probs) {
+    const body = $('ladder');
+    if (!probs.some(Boolean)) {
+      body.innerHTML = '<tr><td colspan="5">Enter odds to compare line counts.</td></tr>';
+      return;
+    }
+    const steps = LADDER.slice();
+    if (!steps.includes(state.budget)) steps.push(state.budget);
+    steps.sort((x, y) => x - y);
+    const base = evaluate(optimise(probs, 1, state.triples), probs).prob;
+    const stake = stakeValue();
+    body.innerHTML = steps.map(b => {
+      const r = evaluate(optimise(probs, b, state.triples), probs);
+      return `<tr class="${b === state.budget ? 'current' : ''}">` +
+        `<td><button type="button" class="linkish" data-b="${b}" aria-label="Use ${b} lines">${fmtInt(b)}</button></td>` +
+        `<td class="num-col">1 in ${oneIn(r.prob)}</td><td class="num-col">${pct(r.prob)}</td>` +
+        `<td class="num-col">×${(r.prob / base).toFixed(1)}</td><td class="num-col">${money(r.lines * stake)}</td></tr>`;
+    }).join('');
+  }
+
+  function syncControls() {
+    const budgetInput = $('budget');
+    if (document.activeElement !== budgetInput) budgetInput.value = state.budget;
+    $('budget-chips').querySelectorAll('.chip').forEach(c => {
+      c.setAttribute('aria-pressed', Number(c.dataset.b) === state.budget ? 'true' : 'false');
+    });
+    $('triples').checked = state.triples;
+    $('learn').checked = state.learn;
+    $('weight-chips').querySelectorAll('.chip').forEach(c => {
+      c.setAttribute('aria-pressed', c.dataset.w === state.newsWeight ? 'true' : 'false');
+    });
+    const stakeInput = $('stake');
+    if (document.activeElement !== stakeInput) stakeInput.value = state.stake;
+    $('banner').hidden = !state.example;
+    renderResearchPanel();
+    $('add').disabled = state.games.length >= MAX_GAMES;
+  }
+
+  let current = null;
+  function update() {
+    const base = state.games.map(baseOf);
+    const weight = WEIGHTS[state.newsWeight];
+    const L = activeLearning();
+    const probs = base.map((b, i) => predict(b.xg, newsShift(state.games[i].news, weight, b.modelled), L));
+    const rec = evaluate(optimise(probs, state.budget, state.triples), probs);
+    const ticket = state.custom ? evaluate(customPicks(probs), probs) : rec;
+    current = { probs, ticket };
+    updateRows(probs, ticket, base);
+    renderTicket(probs, ticket);
+    renderLadder(probs);
+    syncControls();
+    renderTracker();
+  }
+
+  // ---- Actions ----
+
+  function setBudget(n) {
+    state.budget = clampBudget(n);
+    state.custom = null;
+    save();
+    update();
+  }
+
+  function toggle(i, o) {
+    const p = current.probs[i];
+    if (!p) return;
+    if (!state.custom) state.custom = current.ticket.picks.map(pk => pk ? pk.slice() : null);
+    let pk = state.custom[i] && state.custom[i].length ? state.custom[i].slice() : [rank(p)[0]];
+    if (pk.includes(o)) {
+      if (pk.length === 1) return; // each game keeps at least one pick
+      pk = pk.filter(x => x !== o);
+    } else {
+      pk = pk.concat(o).sort((x, y) => x - y);
+    }
+    state.custom[i] = pk;
+    save();
+    update();
+  }
+
+  function removeGame(i) {
+    if (state.games.length <= 1) return;
+    state.games.splice(i, 1);
+    if (state.custom) state.custom.splice(i, 1);
+    buildRows();
+    save();
+    update();
+    const next = list.children[Math.min(i, list.children.length - 1)];
+    if (next) next.querySelector('.team').focus();
+  }
+
+  function armable(btn, armedText, action) {
+    const original = btn.textContent;
+    let timer = null;
+    const disarm = () => { clearTimeout(timer); btn.classList.remove('armed'); btn.textContent = original; };
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('armed')) { disarm(); action(); return; }
+      btn.classList.add('armed');
+      btn.textContent = armedText;
+      timer = setTimeout(disarm, 4000);
+    });
+  }
+
+  // ---- Wiring ----
+
+  $('budget-chips').innerHTML = CHIPS.map(b =>
+    `<button type="button" class="chip" data-b="${b}" aria-pressed="false">${b}</button>`).join('');
+  $('budget-chips').addEventListener('click', e => {
+    const c = e.target.closest('.chip');
+    if (c) setBudget(Number(c.dataset.b));
+  });
+
+  $('weight-chips').innerHTML = Object.keys(WEIGHTS).map(w =>
+    `<button type="button" class="chip" data-w="${w}" aria-pressed="false">${WEIGHT_LABELS[w]}</button>`).join('');
+  $('weight-chips').addEventListener('click', e => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    state.newsWeight = c.dataset.w;
+    save();
+    update();
+  });
+
+  $('budget-up').addEventListener('click', () => {
+    const next = lineSteps(state.triples).find(n => n > state.budget);
+    if (next) setBudget(next);
+  });
+  $('budget-down').addEventListener('click', () => {
+    const prev = lineSteps(state.triples).reverse().find(n => n < state.budget);
+    if (prev) setBudget(prev);
+  });
+  $('budget').addEventListener('input', e => {
+    const n = Math.floor(Number(e.target.value));
+    if (n >= 1) setBudget(n);
+  });
+  $('budget').addEventListener('change', e => { e.target.value = state.budget; });
+
+  $('stake').addEventListener('input', e => {
+    state.stake = e.target.value;
+    save();
+    update();
+  });
+  $('triples').addEventListener('change', e => {
+    state.triples = e.target.checked;
+    state.custom = null;
+    save();
+    update();
+  });
+  $('learn').addEventListener('change', e => {
+    state.learn = e.target.checked;
+    save();
+    update();
+  });
+  $('reset').addEventListener('click', () => {
+    state.custom = null;
+    save();
+    update();
+  });
+
+  list.addEventListener('input', e => {
+    const t = e.target;
+    const li = t.closest('.game');
+    if (!li) return;
+    const g = state.games[Number(li.dataset.i)];
+    if (t.matches('.team')) g[t.dataset.side] = t.value;
+    else if (t.matches('.odds')) { g.odds[Number(t.dataset.o)] = t.value; state.example = false; }
+    save();
+    update();
+  });
+  list.addEventListener('click', e => {
+    const box = e.target.closest('.box');
+    if (box) { toggle(Number(box.closest('.game').dataset.i), Number(box.dataset.o)); return; }
+    const rm = e.target.closest('.remove');
+    if (rm) { removeGame(Number(rm.closest('.game').dataset.i)); return; }
+    const seg = e.target.closest('.seg-btn');
+    if (seg) {
+      const g = state.games[Number(seg.closest('.game').dataset.i)];
+      if (!g.news) g.news = emptyNews();
+      g.news[seg.closest('.factor').dataset.f] = Number(seg.dataset.v);
+      save();
+      update();
+      return;
+    }
+    const tog = e.target.closest('.news-toggle');
+    if (tog) {
+      const li = tog.closest('.game');
+      const panel = li.querySelector('.news-panel');
+      const open = panel.hidden;
+      panel.hidden = !open;
+      tog.setAttribute('aria-expanded', String(open));
+      if (open) openNews.add(li.dataset.id); else openNews.delete(li.dataset.id);
+    }
+  });
+  // Enter moves to the next field, so a whole coupon can be typed without the mouse.
+  list.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || !e.target.matches('.team, .odds')) return;
+    e.preventDefault();
+    const fields = [...list.querySelectorAll('.team, .odds')];
+    const next = fields[fields.indexOf(e.target) + 1];
+    if (next) { next.focus(); next.select(); }
+  });
+
+  $('add').addEventListener('click', () => {
+    if (state.games.length >= MAX_GAMES) return;
+    state.games.push(emptyGame());
+    if (state.custom) state.custom.push(null);
+    buildRows();
+    save();
+    update();
+    list.lastElementChild.querySelector('.team').focus();
+  });
+  armable($('clear'), 'Click again to clear', () => {
+    state.games = state.games.map(() => emptyGame());
+    state.custom = null;
+    state.example = false;
+    state.researchId = '';
+    buildRows();
+    save();
+    update();
+    list.querySelector('.team').focus();
+  });
+  armable($('example'), 'Click again to replace', () => {
+    state.games = exampleGames();
+    state.custom = null;
+    state.example = true;
+    state.researchId = '';
+    buildRows();
+    save();
+    update();
+  });
+
+  $('ladder').addEventListener('click', e => {
+    const b = e.target.closest('.linkish');
+    if (b) setBudget(Number(b.dataset.b));
+  });
+
+  // ---- Screenshot import ----
+
+  const imp = {
+    zone: $('import'),
+    file: $('import-file'),
+    choose: $('import-choose'),
+    stop: $('import-stop'),
+    undo: $('import-undo'),
+    status: $('import-status'),
+  };
+  const IMPORT_PROMPT = [
+    'The attached images are screenshots of a football jackpot coupon: a numbered list of matches, each predicted as 1 (home win), X (draw) or 2 (away win).',
+    'If there are several screenshots, they are consecutive parts of the same coupon. List each match once, in coupon order.',
+    'For every match give the home team (listed first or on top), the away team, the kick-off date and time exactly as shown, and the decimal odds for 1, X and 2 when the screenshot shows them.',
+    'Convert fractional odds such as 7/4 to decimal (2.75). Use null for any odds or kick-off the screenshot does not show. Never guess or estimate odds.',
+    'Ignore scores, results, ticks, picks and game IDs.',
+    'Reply with only JSON in this shape: {"games":[{"home":"Home FC","away":"Away United","when":"25/10 16:30","odds":[2.10,3.30,3.40]}]}',
+    'If the images show no matches, reply {"games":[]}.',
+  ].join('\n');
+  const IMPORT_OFF = ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed', 'images_unavailable'];
+  const IMPORT_ERRORS = {
+    image_rejected: "That file couldn't be read. Try a PNG or JPEG screenshot.",
+    rate_limited: 'Too many requests just now. Wait a minute, then try again.',
+    session_expired: 'Sign in to Claude again, then try again.',
+    refused: "Claude couldn't read games from that image. Try a screenshot of the coupon itself.",
+    empty_completion: "Couldn't find games in that screenshot. Try a clearer one, cropped to the coupon.",
+    invalid_json: "Couldn't find games in that screenshot. Try a clearer one, cropped to the coupon.",
+  };
+
+  let sample = null;
+  let imageLimits = null;
+  let importCtl = null;
+  let undoState = null;
+
+  function setImportStatus(text, kind) {
+    imp.status.textContent = text;
+    imp.status.dataset.kind = kind || '';
+    imp.status.hidden = !text;
+  }
+
+  function disableImport(text) {
+    imageLimits = null;
+    imp.choose.disabled = true;
+    imp.zone.classList.add('off');
+    setImportStatus(text, 'muted');
+  }
+
+  function setImportBusy(busy) {
+    imp.choose.disabled = busy || !imageLimits;
+    imp.stop.hidden = !busy;
+    if (busy) imp.undo.hidden = true;
+  }
+
+  // Claude's reply is untrusted: keep only names and odds that make sense.
+  function cleanImported(data) {
+    const rows = data && Array.isArray(data.games) ? data.games : Array.isArray(data) ? data : [];
+    const name = v => typeof v === 'string' ? v.trim().slice(0, 60) : '';
+    return rows.filter(g => g && typeof g === 'object').slice(0, MAX_GAMES).map(g => ({
+      id: newId(),
+      home: name(g.home),
+      away: name(g.away),
+      when: name(g.when).slice(0, 40),
+      odds: [0, 1, 2].map(k => {
+        const n = Array.isArray(g.odds) ? Number(g.odds[k]) : NaN;
+        return n > 1 && n < 1000 ? n.toFixed(2) : '';
+      }),
+      news: null,
+      model: null,
+    })).filter(g => g.home || g.away);
+  }
+
+  async function importImages(fileList) {
+    if (!sample || !imageLimits || importCtl) return;
+    const files = [...fileList].filter(f => f.type.startsWith('image/'));
+    if (!files.length) {
+      setImportStatus("That isn't an image. Use a PNG or JPEG screenshot.", 'error');
+      return;
+    }
+    const usable = files
+      .filter(f => imageLimits.mediaTypes.includes(f.type) && f.size <= imageLimits.maxInputBytes)
+      .slice(0, imageLimits.maxCount);
+    if (!usable.length) {
+      setImportStatus(`That image can't be read. Use a PNG, JPEG, WebP or GIF under ${Math.floor(imageLimits.maxInputBytes / 1e6)} MB.`, 'error');
+      return;
+    }
+
+    importCtl = new AbortController();
+    setImportBusy(true);
+    setImportStatus(`Reading ${usable.length > 1 ? `${usable.length} screenshots` : 'your screenshot'}. This can take up to a minute.`, 'busy');
+    try {
+      const data = await sample.json(IMPORT_PROMPT, {
+        images: usable,
+        signal: importCtl.signal,
+        onText: ({ text }) => {
+          const n = (text.match(/"home"/g) || []).length;
+          if (n) setImportStatus(`Found ${n} game${n === 1 ? '' : 's'} so far…`, 'busy');
+        },
+      });
+      const games = cleanImported(data);
+      if (!games.length) {
+        setImportStatus("Couldn't find any games in that screenshot. Try one that shows the team names clearly.", 'error');
+        return;
+      }
+      undoState = JSON.stringify({ games: state.games, custom: state.custom, example: state.example });
+      state.games = games;
+      state.custom = null;
+      state.example = false;
+      state.researchId = '';
+      buildRows();
+      save();
+      update();
+      setImportStatus(`Loaded ${games.length} game${games.length === 1 ? '' : 's'}. Check the teams, then send the screenshot to Claude in the chat for a results model and team news, or rate the games yourself under Team news.`, 'done');
+      imp.undo.hidden = false;
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'cancelled') {
+        setImportStatus('Stopped. Your coupon is unchanged.', 'muted');
+      } else if (IMPORT_OFF.includes(code)) {
+        disableImport(code === 'not_granted'
+          ? "Claude isn't allowed to read screenshots on this page, so type the games in instead."
+          : "Screenshot import isn't available here. Type the games in instead.");
+      } else {
+        setImportStatus(IMPORT_ERRORS[code] || 'Something went wrong reading the screenshot. Try again.', 'error');
+      }
+    } finally {
+      importCtl = null;
+      setImportBusy(false);
+    }
+  }
+
+  imp.choose.addEventListener('click', () => imp.file.click());
+  imp.file.addEventListener('change', () => {
+    const files = [...imp.file.files];
+    imp.file.value = '';
+    if (files.length) importImages(files);
+  });
+  imp.stop.addEventListener('click', () => { if (importCtl) importCtl.abort(); });
+  imp.undo.addEventListener('click', () => {
+    if (!undoState) return;
+    Object.assign(state, sanitize({ ...state, ...JSON.parse(undoState) }));
+    undoState = null;
+    imp.undo.hidden = true;
+    buildRows();
+    save();
+    update();
+    setImportStatus('Restored the coupon you had before the import.', 'muted');
+  });
+
+  ['dragenter', 'dragover'].forEach(type => imp.zone.addEventListener(type, e => {
+    if (!imageLimits) return;
+    e.preventDefault();
+    imp.zone.classList.add('over');
+  }));
+  imp.zone.addEventListener('dragleave', e => {
+    if (!imp.zone.contains(e.relatedTarget)) imp.zone.classList.remove('over');
+  });
+  imp.zone.addEventListener('drop', e => {
+    e.preventDefault();
+    imp.zone.classList.remove('over');
+    if (e.dataTransfer && e.dataTransfer.files.length) importImages(e.dataTransfer.files);
+  });
+  // Stop a stray drop elsewhere from opening the image in place of the page.
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+  document.addEventListener('paste', e => {
+    const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => f.type.startsWith('image/'));
+    if (!files.length || !imageLimits) return;
+    e.preventDefault();
+    importImages(files);
+  });
+
+  // ---- Claude's researched coupon ----
+
+  // Claude fills this in from the chat after researching a coupon; null until then.
+  // Each game cites its league table, its league's injury list and a head-to-head record.
+  const SRC = {
+    epl: ['https://www.bbc.com/sport/football/premier-league/table', 'https://www.sportsgambler.com/injuries/football/england-premier-league/'],
+    liga: ['https://www.bbc.com/sport/football/spanish-la-liga/table', 'https://www.sportsgambler.com/injuries/football/spain-la-liga/'],
+    serieA: ['https://www.bbc.com/sport/football/italian-serie-a/table', 'https://www.sportsgambler.com/injuries/football/italy-serie-a/'],
+    buli: ['https://www.bbc.com/sport/football/german-bundesliga/table', 'https://www.sportsgambler.com/injuries/football/germany-bundesliga/'],
+    ligue1: ['https://www.bbc.com/sport/football/french-ligue-one/table', 'https://www.sportsgambler.com/injuries/football/france-ligue-1/'],
+    ere: ['https://www.sportsgambler.com/injuries/football/netherlands-eredivisie/'],
+  };
+  const RESEARCHED = {
+    id: '2026-11-07-model',
+    title: 'Jackpot for 7–8 Nov (results model)',
+    researchedAt: '2026-11-02',
+    note: 'Expected goals from league results up to 1 Nov, plus injuries and head-to-head checked on Monday. Odds play no part. Late team news is still to come.',
+    // Each game's model.xg is [home, away] expected goals from Claude's results-only team model.
+    games: [
+      { home: 'Cagliari', away: 'Frosinone', when: '7/11 14:00', odds: [2.80, 3.71, 2.42],
+        model: { xg: [1.24, 2.09], note: 'Frosinone are newly promoted, so they are rated on their 10 Serie A games this season, with a small promoted-team discount.' },
+        news: { form: 0, h2h: 0, injuries: -1, notes: {
+          form: 'Frosinone, newly promoted, are 6th (20 pts) and have scored 24 in 10. Cagliari are 12th (13 pts) and have lost four of their last five.',
+          h2h: 'No meetings in the last two seasons, as Frosinone were not in Serie A last season.',
+          injuries: 'Cagliari lose defender Obert (red card, out to 21 Nov) and Gagliardini (bookings), plus long-term Felici and Idrissi. Frosinone only list Grillitsch.',
+        }, sources: [...SRC.serieA] } },
+      { home: 'Paderborn', away: 'Eintracht Frankfurt', when: '7/11 14:30', odds: [2.99, 3.90, 2.23],
+        model: { xg: [1.33, 1.21], note: 'Paderborn are newly promoted, so they are rated on their 8 Bundesliga games this season, with a small promoted-team discount.' },
+        news: { form: 0, h2h: 0, injuries: -1, notes: {
+          form: 'Paderborn (14th, 9 pts) have won two of four at home and conceded only nine in eight. Frankfurt (8th, 11 pts) have conceded 18, including 6-0 at Leipzig.',
+          h2h: 'No meetings in the last two seasons.',
+          injuries: 'Paderborn list striker Pieringer (8 games), Klaas, Batista Meier and Hoffmeier. Frankfurt only list Ngankam.',
+        }, sources: [...SRC.buli] } },
+      { home: 'Fulham', away: 'Newcastle', when: '7/11 15:00', odds: [2.22, 3.65, 3.16], model: { xg: [1.41, 1.17] },
+        news: { form: 0, h2h: 0, injuries: 0, notes: {
+          form: 'Fulham (15th, 9 pts) are unbeaten in three. Newcastle (12th, 11 pts) have lost three of their last five, including 4-1 at both Leeds and Coventry.',
+          h2h: 'Mixed: each side won three of the last six league meetings, and Fulham won 2-0 at home in May.',
+          injuries: 'Fulham’s Sessegnon is due back from a ban on match day. Newcastle list Osula, Livramento (due back on match day) and reserve keeper Jaouen. Little to choose between them.',
+        }, sources: [...SRC.epl, 'https://www.11v11.com/teams/fulham/tab/opposingTeams/opposition/Newcastle%20United/'] } },
+      { home: 'Espanyol', away: 'RC Deportivo de A Coruna', when: '7/11 15:15', odds: [2.24, 3.41, 3.32],
+        model: { xg: [1.34, 1.01], note: 'Deportivo are newly promoted, so they are rated on their 10 La Liga games this season, with a small promoted-team discount.' },
+        news: { form: 0, h2h: 0, injuries: -1, notes: {
+          form: 'Level on 11 pts: Espanyol 14th, Deportivo 13th. Espanyol have won once at home (W1 D1 L3); Deportivo have drawn five of ten.',
+          h2h: 'No meetings in the last two seasons, as Deportivo were not in La Liga last season.',
+          injuries: 'Espanyol lose Hinojo (10 games, banned to 20 Nov) and Pol Lozano (bookings), with Calatrava and Kike García out. Deportivo have nobody listed.',
+        }, sources: [...SRC.liga] } },
+      { home: 'ADO Den Haag', away: 'Sparta Rotterdam', when: '7/11 17:45', odds: [2.38, 3.63, 2.74],
+        model: { xg: [1.6, 1.56], note: 'Den Haag are newly promoted, so they are rated on their 11 Eredivisie games this season. The model has not been tested on the Eredivisie yet.' },
+        news: { form: 0, h2h: 0, injuries: 0, notes: {
+          form: 'Den Haag are 17th (6 pts, one win in 11) but beat PSV 2-1 three games ago. Sparta are 11th (12 pts) and have conceded 26.',
+          h2h: 'No meetings in the last two seasons, as Den Haag were not in the Eredivisie last season.',
+          injuries: 'Den Haag have nobody listed; no list found for Sparta. Check again on Friday.',
+        }, sources: [...SRC.ere] } },
+      { home: 'Excelsior Rotterdam', away: 'Go Ahead Eagles', when: '7/11 20:00', odds: [2.69, 3.68, 2.40], model: { xg: [1.65, 1.82], note: 'The model has not been tested on the Eredivisie yet.' },
+        news: { form: 0, h2h: -1, injuries: 0, notes: {
+          form: 'Excelsior (15th, 11 pts) have lost four of five, including 9-0 to Twente, and have won once at home. Go Ahead (10th, 14 pts) have not won away (D3 L3).',
+          h2h: 'Go Ahead won both meetings last season: 2-0 at home and 1-0 at Excelsior.',
+          injuries: 'Excelsior have nobody listed; no list found for Go Ahead. Check again on Friday.',
+        }, sources: [...SRC.ere] } },
+      { home: 'Napoli', away: 'Lazio', when: '8/11 11:30', odds: [2.14, 3.69, 3.33], model: { xg: [1.32, 1.1] },
+        news: { form: 0, h2h: 0, injuries: 0, notes: {
+          form: 'Lazio top Serie A with 28 pts from 10 and have won all five away games. Napoli are 8th (14 pts). The model leans on last season too, which is why it still rates Napoli.',
+          h2h: 'Each side won 2-0 away last season.',
+          injuries: 'Both are stretched. Napoli: Lobotka, Spinazzola, Folorunsho, Neres, Buongiorno and Alisson Santos out, Marianucci banned. Lazio: Taylor and Tavares banned for bookings, Rovella and Marusic out.',
+        }, sources: [...SRC.serieA] } },
+      { home: 'Elche CF', away: 'Betis', when: '8/11 13:00', odds: [3.18, 3.72, 2.19], model: { xg: [1.43, 1.41] },
+        news: { form: 0, h2h: 0, injuries: 0, notes: {
+          form: 'Betis are 4th (23 pts). Elche are 17th (10 pts) and have not won at home (D1 L4), though they won their last two away games.',
+          h2h: 'A 1-1 draw in Elche and a 2-1 Betis win at home last season.',
+          injuries: 'Elche miss Marc Aguado and Yago Santiago. Betis miss Bernal (red card, to 29 Nov), Juan Hernández and Firpo. Roughly even.',
+        }, sources: [...SRC.liga] } },
+      { home: 'Sunderland AFC', away: 'Chelsea', when: '8/11 14:00', odds: [3.72, 3.64, 2.01], model: { xg: [1.28, 1.51] },
+        news: { form: 0, h2h: 0, injuries: 0, notes: {
+          form: 'Sunderland are bottom (5 pts, one win in nine). Chelsea are 4th (16 pts). The model still credits Sunderland for a good last season.',
+          h2h: 'Sunderland won both meetings last season (2-1 away, 2-1 at home), but over the last six it is three wins each.',
+          injuries: 'Sunderland lose centre-backs Alderete (banned) and Ballard, plus Adingra and Mundle. Chelsea lose top scorer João Pedro, Lacroix, Gittens and Reece James; Hato and Martínez are due back.',
+        }, sources: [...SRC.epl, 'https://www.11v11.com/teams/sunderland/tab/opposingTeams/opposition/Chelsea/'] } },
+      { home: 'Brest', away: 'Lyon', when: '8/11 16:15', odds: [2.95, 3.64, 2.34], model: { xg: [1.22, 1.51] },
+        news: { form: 0, h2h: 0, injuries: 1, notes: {
+          form: 'Lyon are 3rd (17 pts) and have conceded only seven. Brest are 14th (9 pts) and have won one of four at home.',
+          h2h: 'A 0-0 draw in Brest and a 2-1 Lyon win at home last season.',
+          injuries: 'Lyon lose Nakamura (bookings) and Šulc (knee), with Kango and Ouédraogo out. Brest list Versini, Chardonnet and reserve keeper Cagnon.',
+        }, sources: [...SRC.ligue1] } },
+      { home: 'Le Havre', away: 'Lorient', when: '8/11 16:15', odds: [2.73, 3.39, 2.64], model: { xg: [1.05, 1.19] },
+        news: { form: 0, h2h: 0, injuries: 0, notes: {
+          form: 'Le Havre are bottom with 2 pts and have lost their last five. Lorient are 10th (12 pts) and have conceded only six in eight.',
+          h2h: 'A 1-1 draw in Le Havre and a 2-0 Le Havre win in Lorient last season.',
+          injuries: 'Le Havre lose Seko (banned to 20 Nov) and Pembele. Lorient only list Katseris.',
+        }, sources: [...SRC.ligue1] } },
+      { home: 'Man Utd', away: 'Aston Villa', when: '8/11 16:30', odds: [2.27, 3.75, 3.00], model: { xg: [1.73, 1.29] },
+        news: { form: 0, h2h: 1, injuries: -1, notes: {
+          form: 'United are 17th (7 pts, one win in nine). Villa are 9th (12 pts) and unbeaten in five, with three wins.',
+          h2h: 'United have won six of the last eight meetings, including 3-1 at home in March; Villa won 2-1 at home in December.',
+          injuries: 'United are without Lisandro Martínez (banned), Sesko, Shaw, Dorgu, Amad and Ugarte. Villa only miss Ruggeri and Onana.',
+        }, sources: [...SRC.epl, 'https://www.11v11.com/teams/manchester-united/tab/opposingTeams/opposition/Aston%20Villa/'] } },
+    ],
+  };
+
+  const rs = {
+    title: $('research-title'),
+    text: $('research-text'),
+    load: $('research-load'),
+    undo: $('research-undo'),
+    status: $('research-status'),
+  };
+  let researchUndo = null;
+
+  function hostOf(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url; }
+  }
+
+  function setResearchStatus(text, kind) {
+    rs.status.textContent = text;
+    rs.status.dataset.kind = kind || '';
+    rs.status.hidden = !text;
+  }
+
+  const hasResearch = () => !!(RESEARCHED && Array.isArray(RESEARCHED.games) && RESEARCHED.games.length);
+
+  function renderResearchPanel() {
+    if (!hasResearch()) {
+      rs.load.hidden = true;
+      return;
+    }
+    const n = RESEARCHED.games.length;
+    const t = Date.parse(RESEARCHED.researchedAt);
+    const day = isFinite(t) ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : 'recently';
+    const loaded = state.researchId === RESEARCHED.id;
+    rs.title.textContent = loaded ? "You're using Claude's research" : 'Researched coupon ready';
+    const note = typeof RESEARCHED.note === 'string' ? ` ${RESEARCHED.note.slice(0, 200)}` : '';
+    rs.text.textContent = `${RESEARCHED.title}: ${n} game${n === 1 ? '' : 's'} with expected goals, ratings, notes and sources, researched ${day}.${note}` +
+      (loaded ? ' Load it again to drop any changes you made.' : ' Loading it replaces your current coupon.');
+    rs.load.hidden = false;
+    rs.load.textContent = loaded ? 'Load it again' : 'Load researched coupon';
+  }
+
+  function loadResearched() {
+    if (!hasResearch()) return;
+    const at = Date.parse(RESEARCHED.researchedAt) || Date.now();
+    const games = RESEARCHED.games.slice(0, MAX_GAMES).map(g => ({
+      id: newId(),
+      home: String(g.home || '').slice(0, 60),
+      away: String(g.away || '').slice(0, 60),
+      when: String(g.when || '').slice(0, 40),
+      odds: [0, 1, 2].map(k => {
+        const n = Number(g.odds && g.odds[k]);
+        return n > 1 ? n.toFixed(2) : '';
+      }),
+      news: Object.assign(sanitizeNews(g.news) || emptyNews(), { status: 'done', at }),
+      model: sanitizeModel(g.model),
+    }));
+    // Claude's own picks, such as '1' or 'X2' per game, load as edited picks when every game has one.
+    const own = Array.isArray(RESEARCHED.picks) && RESEARCHED.picks.length === games.length
+      ? RESEARCHED.picks.map(s => [...new Set([...String(s)].map(c => OUT.indexOf(c)).filter(o => o >= 0))].sort((x, y) => x - y))
+      : null;
+    researchUndo = JSON.stringify({ games: state.games, custom: state.custom, example: state.example, researchId: state.researchId });
+    state.games = games;
+    state.custom = own && own.every(pk => pk.length) ? own : null;
+    state.example = false;
+    state.researchId = RESEARCHED.id;
+    buildRows();
+    save();
+    update();
+    rs.undo.hidden = false;
+    setResearchStatus(`Loaded ${games.length} games${state.custom ? " with Claude's picks marked" : ''}. Open Team news on any game to read the notes and sources.`, 'done');
+  }
+
+  rs.load.addEventListener('click', loadResearched);
+  rs.undo.addEventListener('click', () => {
+    if (!researchUndo) return;
+    Object.assign(state, sanitize({ ...state, ...JSON.parse(researchUndo) }));
+    researchUndo = null;
+    rs.undo.hidden = true;
+    buildRows();
+    save();
+    update();
+    setResearchStatus('Restored the coupon you had before.', 'muted');
+  });
+
+  // ---- Track record ----
+
+  // Tracked coupons live in the page's database, so they last and Claude can read them and fill in results.
+  // Collection "coupons", one document per coupon:
+  //   { title, trackedAt, updatedAt (ms), weight, method: 'results-model',
+  //     games: [{ home, away, when, odds: [1, X, 2], xg: [home, away], modelled, shift,
+  //               pBase, pNews | null, pFinal, pOdds | null, result: 0 | 1 | 2 | null, score: '2-1' }] }
+  // pBase are the chances from expected goals alone; pNews add team news at the weight in use; pFinal are
+  // the chances the picks used, after learning; shift is the team-news shift at weight 1.
+  // pOdds are the coupon odds' fair chances, kept only to compare with afterwards, never used for a pick.
+  // Coupons tracked before November 2026 used the old odds-based method: they have pOdds but no pBase.
+  const TRACK = 'coupons';
+  const tk = {
+    save: $('track-save'),
+    status: $('track-status'),
+    summary: $('track-summary'),
+    list: $('track-list'),
+    count: $('track-count'),
+  };
+  let db = null;
+  let trackState = 'loading'; // loading | ready | off
+  let savedDocs = []; // the database's latest snapshot
+  let tracked = []; // savedDocs cleaned, plus changes still being written
+  const fromSaved = () => savedDocs.map(d => cleanTracked(d.id, d.data())).filter(Boolean);
+  let trackReadOnly = false;
+  let trackSaving = false;
+  let armedRemove = '';
+  let armedTimer = null;
+  const openTracked = new Set();
+  const writing = new Set();
+  const queued = new Map();
+  let learned = null; // what learn() found, or null until the database answers
+  const picked = g => g.pFinal || g.pNews || g.pBase || g.pOdds; // the chances a tracked pick was made on
+  const before = g => g.pBase || g.pOdds; // the chances before team news (odds only on old coupons)
+
+  // Refits the corrections whenever the tracked results change.
+  function relearn() {
+    learned = learn(learningInputs(tracked));
+  }
+  const activeLearning = () => state.learn && learned ? learned : NO_LEARNING;
+
+  function setTrackStatus(text, kind) {
+    tk.status.textContent = text;
+    tk.status.dataset.kind = kind || '';
+    tk.status.hidden = !text;
+  }
+
+  // Documents may be written by Claude or another copy of the page, so keep only well-formed values.
+  function probTriple(v) {
+    if (!Array.isArray(v) || v.length !== 3) return null;
+    const p = v.map(Number);
+    if (p.some(x => !(x >= 0 && x <= 1))) return null;
+    const s = p[0] + p[1] + p[2];
+    return Math.abs(s - 1) < 0.02 ? p.map(x => x / s) : null;
+  }
+  function cleanTracked(id, d) {
+    if (!d || !Array.isArray(d.games)) return null;
+    const str = (v, n) => typeof v === 'string' ? v.trim().slice(0, n) : '';
+    const games = d.games.filter(g => g && typeof g === 'object').slice(0, MAX_GAMES).map(g => ({
+      home: str(g.home, 60),
+      away: str(g.away, 60),
+      when: str(g.when, 40),
+      odds: [0, 1, 2].map(k => {
+        const n = Array.isArray(g.odds) ? Number(g.odds[k]) : NaN;
+        return n > 1 && n < 1000 ? n : null;
+      }),
+      xg: Array.isArray(g.xg) && g.xg.length === 2 && g.xg.every(x => Number(x) >= 0.1 && Number(x) <= 5) ? g.xg.map(Number) : null,
+      modelled: g.modelled === true,
+      shift: Number.isFinite(Number(g.shift)) && Math.abs(Number(g.shift)) <= MAX_SHIFT ? Number(g.shift) : 0,
+      pBase: probTriple(g.pBase),
+      pOdds: probTriple(g.pOdds),
+      pNews: probTriple(g.pNews),
+      pFinal: probTriple(g.pFinal),
+      result: g.result === 0 || g.result === 1 || g.result === 2 ? g.result : null,
+      score: str(g.score, 12),
+    }));
+    if (!games.length) return null;
+    const time = v => Number(v) > 0 ? Number(v) : 0;
+    return { id, title: str(d.title, 80) || 'Coupon', trackedAt: time(d.trackedAt), updatedAt: time(d.updatedAt), weight: str(d.weight, 10), method: str(d.method, 20), games };
+  }
+  const bodyOf = c => ({ title: c.title, trackedAt: c.trackedAt, updatedAt: c.updatedAt, weight: c.weight, ...(c.method ? { method: c.method } : {}), games: c.games });
+
+  // The coupon on screen counts as tracked when a saved coupon has the same matches in the same order.
+  const teamsKey = games => games.map(g => `${g.home.trim().toLowerCase()}|${g.away.trim().toLowerCase()}`).join('/');
+  function currentTracked() {
+    const key = teamsKey(state.games);
+    return tracked.find(c => teamsKey(c.games) === key) || null;
+  }
+
+  const shortDay = t => t ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '–';
+  function couponTitle() {
+    if (hasResearch() && state.researchId === RESEARCHED.id) return RESEARCHED.title;
+    const days = [...new Set(state.games.map(g => g.when.trim().split(/\s+/)[0]).filter(Boolean))];
+    if (days.length) return `Coupon for ${days[0]}${days.length > 1 ? ` – ${days[days.length - 1]}` : ''}`;
+    return `Coupon saved ${shortDay(Date.now())}`;
+  }
+
+  const round4 = p => p.map(x => Math.round(x * 1e4) / 1e4);
+  function trackBody(existing) {
+    const weight = WEIGHTS[state.newsWeight];
+    const now = Date.now();
+    const games = state.games.map((g, i) => {
+      const b = baseOf(g);
+      const f = fair(g); // the coupon odds, kept for comparison only
+      const s = newsShift(g.news, weight, b.modelled);
+      const prev = existing && existing.games[i];
+      const keep = prev && prev.home.toLowerCase() === g.home.trim().toLowerCase() && prev.away.toLowerCase() === g.away.trim().toLowerCase();
+      return {
+        home: g.home.trim().slice(0, 60),
+        away: g.away.trim().slice(0, 60),
+        when: g.when,
+        odds: g.odds.map(o => { const n = parseOdds(o); return n > 1 ? Math.round(n * 100) / 100 : null; }),
+        xg: b.xg.map(x => Math.round(x * 100) / 100),
+        modelled: b.modelled,
+        shift: Math.round(newsShift(g.news, 1, b.modelled) * 1e4) / 1e4,
+        pBase: round4(b.p),
+        pNews: s ? round4(goalsChances(shiftGoals(b.xg, s))) : null,
+        pFinal: current && current.probs[i] ? round4(current.probs[i]) : null,
+        pOdds: f ? round4(f.p) : null,
+        result: keep ? prev.result : null,
+        score: keep ? prev.score : '',
+      };
+    });
+    return { title: couponTitle(), trackedAt: existing && existing.trackedAt ? existing.trackedAt : now, updatedAt: now, weight: state.newsWeight, method: 'results-model', games };
+  }
+
+  function trackError(e) {
+    const code = e && e.code;
+    if (code === 'invalid_argument') {
+      trackReadOnly = true;
+      setTrackStatus('You can see this track record but not change it.', 'muted');
+    } else if (code === 'quota_exceeded') {
+      setTrackStatus('The track record is full. Remove old coupons to save new ones.', 'error');
+    } else if (['revoked', 'not_granted', 'capability_disabled', 'capability_removed'].includes(code)) {
+      trackState = 'off';
+      setTrackStatus("The track record isn't available right now.", 'muted');
+    } else {
+      setTrackStatus("Couldn't save to the track record. Try again.", 'error');
+    }
+  }
+
+  async function retryOnce(fn) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (!e || e.code !== 'unavailable') throw e;
+      await new Promise(r => setTimeout(r, 400 + Math.random() * 800));
+      return fn();
+    }
+  }
+
+  // One write at a time per document. A change made while one is in flight waits, then sends
+  // the latest body. A null body deletes the document.
+  async function writeTracked(id, body) {
+    if (!db || trackState !== 'ready') return false;
+    if (writing.has(id)) { queued.set(id, body); return true; }
+    writing.add(id);
+    let ok = true;
+    try {
+      const ref = db.collection(TRACK).doc(id);
+      await retryOnce(() => body ? ref.set(body) : ref.delete());
+    } catch (e) {
+      ok = false;
+      queued.delete(id);
+      tracked = fromSaved(); // drop the change that didn't save
+      trackError(e);
+      relearn();
+      update();
+    }
+    writing.delete(id);
+    if (queued.has(id)) {
+      const next = queued.get(id);
+      queued.delete(id);
+      return writeTracked(id, next);
+    }
+    return ok;
+  }
+
+  // Scores a set of finished games: how often the top pick came in, how many the chances expected,
+  // the average chance on what happened, and the Brier score (lower is better).
+  function scoreSet(rows, probOf) {
+    let hits = 0, exp = 0, spread = 0, onResult = 0, brier = 0;
+    const each = rows.map(g => {
+      const p = probOf(g), top = rank(p)[0];
+      if (top === g.result) hits++;
+      exp += p[top];
+      spread += p[top] * (1 - p[top]);
+      onResult += p[g.result];
+      const b = p.reduce((s, x, k) => s + (x - (k === g.result ? 1 : 0)) ** 2, 0);
+      brier += b;
+      return b;
+    });
+    const n = rows.length;
+    return { n, hits, exp, sd: Math.sqrt(spread), onResult: onResult / n, brier: brier / n, each };
+  }
+  // How much better b scored than a over the same games, from per-game differences, so a verdict
+  // only calls a winner when the gap is bigger than luck: better when mean > 2 * se.
+  function gain(a, b) {
+    const diffs = a.each.map((x, k) => x - b.each[k]);
+    const mean = diffs.reduce((s, x) => s + x, 0) / diffs.length;
+    const sd = Math.sqrt(diffs.reduce((s, x) => s + (x - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
+    return { mean, se: sd / Math.sqrt(diffs.length) };
+  }
+
+  function renderTrackSummary() {
+    const rows = [];
+    tracked.forEach(c => c.games.forEach(g => { if (g.result !== null && before(g)) rows.push(g); }));
+    if (!rows.length) {
+      tk.summary.hidden = !tracked.length;
+      tk.summary.innerHTML = tracked.length ? '<p class="track-note">Mark the results on a tracked coupon to start the scores.</p>' : '';
+      return;
+    }
+    const used = scoreSet(rows, picked);
+    const facts = [
+      ['Coupons', fmtInt(tracked.length)],
+      ['Games with results', fmtInt(used.n)],
+      ['Top picks right', `${used.hits} · ${pct(used.hits / used.n, 0)}`],
+      ['The chances expected', `${used.exp.toFixed(1)} · ${pct(used.exp / used.n, 0)}`],
+    ];
+    const says = [`Top picks came in ${used.hits} of ${used.n} times, and the chances expected about ${used.exp.toFixed(1)}.`];
+    const gap = used.hits - used.exp;
+    if (used.n < 20) says.push('That is too few games to judge yet.');
+    else if (Math.abs(gap) <= 1.5 * used.sd) says.push('That is in line with the chances, so they look realistic so far.');
+    else if (gap > 0) says.push('That is more than expected: the picks have done better than their chances.');
+    else says.push('That is fewer than expected: the chances have been too confident so far.');
+
+    const withNews = rows.filter(g => g.pNews);
+    let table = '';
+    if (!withNews.length) {
+      says.push('None of these games had team news, so there is nothing to compare it with yet.');
+    } else {
+      const a = scoreSet(withNews, before), b = scoreSet(withNews, g => g.pNews);
+      const { mean, se } = gain(a, b);
+      const n = withNews.length;
+      if (n < 40) says.push(`Team news covers ${n} of these games, too few to tell whether it helps. Give it 40 or more.`);
+      else if (mean > 2 * se) says.push(`Over ${n} games, team news has made the chances more accurate.`);
+      else if (mean < -2 * se) says.push(`Over ${n} games, team news has made the chances less accurate. Consider setting Team news weight to Light or Off.`);
+      else says.push(`Over ${n} games, team news has made no clear difference yet.`);
+      const row = (label, s) => `<tr><td>${label}</td><td class="num-col">${s.hits} of ${s.n}</td>` +
+        `<td class="num-col">${pct(s.onResult, 0)}</td><td class="num-col">${s.brier.toFixed(3)}</td></tr>`;
+      table = '<div class="table-wrap"><table><thead><tr><th>Games with team news</th><th class="num-col">Top pick right</th>' +
+        '<th class="num-col">Avg chance on result</th><th class="num-col">Brier score</th></tr></thead>' +
+        `<tbody>${row('Before team news', a)}${row('With team news', b)}</tbody></table></div>` +
+        '<p class="track-note">A higher average chance on the result and a lower Brier score are better. Calling every game a third each scores 0.667. "Before team news" is the results model, or the odds on coupons tracked before November 2026.</p>';
+    }
+    // A scoreboard only: how the coupon odds would have done on the new method's games. Never used for a pick.
+    const versus = rows.filter(g => g.pBase && g.pOdds);
+    if (versus.length) {
+      const m = scoreSet(versus, picked), o = scoreSet(versus, g => g.pOdds);
+      says.push(`For comparison only: on the ${versus.length} results-model games, the picks got ${m.hits} right and the bookmakers' favourites would have got ${o.hits}.`);
+    }
+    tk.summary.hidden = false;
+    tk.summary.innerHTML = `<dl class="facts track-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>` +
+      `<p class="verdict">${esc(says.join(' '))}</p>${table}`;
+  }
+
+  function renderLearning() {
+    const el = $('learning');
+    el.hidden = trackState === 'off' || !learned;
+    if (el.hidden) return;
+    const L = learned;
+    const title = '<h3>What past results have taught it</h3>';
+    if (!L.games && !L.newsGames) {
+      el.innerHTML = `${title}<p class="track-note">Nothing to learn from yet. It learns from the results of coupons tracked with the results model, so track each coupon before kick-off and mark its results afterwards.</p>`;
+      return;
+    }
+    // How far each correction is from "no change", in standard errors.
+    const z = (x, se) => Number.isFinite(se) && se > 0 ? x / se : 0;
+    const zFav = z(L.sharp - 1, L.se.sharp), zDraw = z(Math.log(L.draw), L.se.draw), zNews = z(L.news - 1, L.se.news);
+    const fav = Math.abs(zFav) < 2 ? 'Its favourites have won about as often as it said, so this barely changes.'
+      : zFav > 0 ? 'Its favourites have won more often than it said, so it backs them a little more.'
+      : 'Its favourites have won less often than it said, so it backs them a little less.';
+    const draw = Math.abs(zDraw) < 2 ? 'Draws have come in about as often as it said, so this barely changes.'
+      : zDraw > 0 ? 'Draws have come in more often than it said, so their chances go up a little.'
+      : 'Draws have come in less often than it said, so their chances go down a little.';
+    const news = L.newsGames < 40
+      ? `${L.newsGames ? `Only ${L.newsGames}` : 'No'} tracked game${L.newsGames === 1 ? '' : 's'} where team news moved the chances, so it still counts as rated. It needs 40 or more to learn much.`
+      : Math.abs(zNews) < 2 ? 'Team news has been worth about what its ratings said.'
+      : zNews > 0 ? 'Team news has mattered more than its ratings said, so it counts for more.'
+      : 'Team news has mattered less than its ratings said, so it counts for less.';
+    const typical = [0.5, 0.27, 0.23], after = calibrate(typical, L);
+    const facts = [
+      ['Favourites', `${pct(typical[0], 0)} → ${pct(after[0], 1)}`, fav],
+      ['Draws', `${pct(typical[1], 0)} → ${pct(after[1], 1)}`, draw],
+      ['Team news', `×${L.news.toFixed(2)}`, news],
+    ];
+    const intro = `Learned from ${fmtInt(L.games)} results on coupons tracked with the results model` +
+      `${L.newsGames ? `, ${L.newsGames} of them with team news` : ''}. ` +
+      'Favourites and Draws show a typical game where the favourite is 50% and the draw 27%.';
+
+    const says = [];
+    if (!state.learn) {
+      says.push('Learn from past results is off, so the chances above use the results model and team news only.');
+    } else {
+      const weight = WEIGHTS[state.newsWeight];
+      let most = 0, changed = 0, n = 0;
+      state.games.forEach(g => {
+        const b0 = baseOf(g);
+        n++;
+        const s = newsShift(g.news, weight, b0.modelled);
+        const a = predict(b0.xg, s, NO_LEARNING), b = predict(b0.xg, s, L);
+        most = Math.max(most, ...a.map((x, k) => Math.abs(x - b[k])));
+        if (rank(a)[0] !== rank(b)[0]) changed++;
+      });
+      if (n) says.push(`On this coupon, learning moves the chances by up to ${(most * 100).toFixed(1)} points and changes ` +
+        `${changed ? `${changed} top pick${changed === 1 ? '' : 's'}` : 'none of the top picks'}.`);
+    }
+    // Tracked games keep the chances from before their results were known, so this is a fair test.
+    const rows = [];
+    tracked.forEach(c => c.games.forEach(g => { if (g.result !== null && g.pFinal && g.pBase) rows.push(g); }));
+    if (rows.length) {
+      const { mean, se } = gain(scoreSet(rows, g => g.pNews || g.pBase), scoreSet(rows, g => g.pFinal));
+      if (rows.length < 40) says.push(`It has been used on ${rows.length} tracked game${rows.length === 1 ? '' : 's'} with results so far, too few to tell whether it helps.`);
+      else if (mean > 2 * se) says.push(`Over ${rows.length} tracked games, learning has made the chances more accurate.`);
+      else if (mean < -2 * se) says.push(`Over ${rows.length} tracked games, learning has made the chances less accurate. Consider unticking Learn from past results.`);
+      else says.push(`Over ${rows.length} tracked games, learning has made no clear difference yet.`);
+    }
+    el.innerHTML = `${title}<p class="track-note">${esc(intro)}</p>` +
+      `<dl class="facts learn-facts">${facts.map(([k, v, why]) => `<div><dt>${k}</dt><dd>${v}</dd><dd class="why">${esc(why)}</dd></div>`).join('')}</dl>` +
+      (says.length ? `<p class="verdict">${esc(says.join(' '))}</p>` : '');
+  }
+
+  function trackedGameRow(c, g, i, p, canEdit) {
+    const n = i + 1;
+    const top = p ? rank(p)[0] : null;
+    const known = g.result !== null && top !== null;
+    const b = before(g);
+    const baseTop = (g.pNews || g.pFinal) && b ? rank(b)[0] : top;
+    const said = known ? (top === g.result ? 'Right' : 'Wrong') : '';
+    const pick = top === null ? '<span class="badge none">–</span>'
+      : `<span class="badge${known ? (top === g.result ? ' hit' : ' miss') : ''}">${OUT[top]}</span>` +
+        `<span class="hint">${pct(p[top], 0)}${said ? ` · ${said}` : ''}${baseTop !== top ? ` · ${g.pBase ? 'model alone' : 'odds alone'} ${OUT[baseTop]}` : ''}</span>`;
+    const sub = [g.when, g.score].filter(Boolean).map(esc).join(' · ');
+    const buttons = OUT.map((o, r) =>
+      `<button type="button" class="seg-btn" data-r="${r}" data-fkey="${esc(c.id)}:${i}:${r}" aria-pressed="${g.result === r}"` +
+      ` aria-label="Game ${n} result: ${OUT_NAME[r]}"${canEdit ? '' : ' disabled'}>${o}</button>`).join('');
+    return `<li class="tgame" data-i="${i}"><span class="li-num">${n}</span>` +
+      `<span class="tg-teams">${esc(g.home || 'Home')} v ${esc(g.away || 'Away')}${sub ? `<span class="tg-when">${sub}</span>` : ''}</span>` +
+      `<span class="tg-pick">${pick}</span>` +
+      `<div class="seg" role="group" aria-label="Result, game ${n}">${buttons}</div></li>`;
+  }
+
+  function renderTrackList() {
+    const active = document.activeElement;
+    const fkey = active && tk.list.contains(active) ? active.dataset.fkey : '';
+    const canEdit = !!db && trackState === 'ready' && !trackReadOnly;
+    tk.list.innerHTML = tracked.map(c => {
+      const probs = c.games.map(picked);
+      const ticket = evaluate(optimise(probs, state.budget, state.triples), probs);
+      const marked = c.games.filter(g => g.result !== null);
+      const tops = c.games.filter((g, i) => g.result !== null && probs[i] && rank(probs[i])[0] === g.result).length;
+      const onTicket = c.games.filter((g, i) => g.result !== null && ticket.picks[i] && ticket.picks[i].includes(g.result)).length;
+      const done = marked.length === c.games.length;
+      const scoreLine = marked.length
+        ? `Top picks ${tops} of ${marked.length} right. Best ${fmtInt(state.budget)}-line ticket: ${onTicket} of ${marked.length}${done ? (onTicket === c.games.length ? ', a winner.' : '.') : ' so far.'}`
+        : 'Mark each result once the games are played.';
+      const armed = armedRemove === c.id;
+      return `<details class="tcoupon" data-id="${esc(c.id)}"${openTracked.has(c.id) ? ' open' : ''}>` +
+        `<summary data-fkey="${esc(c.id)}:sum"><span class="tc-title">${esc(c.title)}</span>` +
+        `<span class="tc-meta">Saved ${shortDay(c.trackedAt)} · ${marked.length} of ${c.games.length} results</span></summary>` +
+        `<ol class="tgames">${c.games.map((g, i) => trackedGameRow(c, g, i, probs[i], canEdit)).join('')}</ol>` +
+        `<div class="tc-foot"><span>${scoreLine}</span>` +
+        (canEdit ? `<button type="button" class="btn small${armed ? ' armed' : ''}" data-act="remove" data-fkey="${esc(c.id)}:rm">${armed ? 'Click again to remove' : 'Remove'}</button>` : '') +
+        '</div></details>';
+    }).join('');
+    if (fkey) {
+      const el = [...tk.list.querySelectorAll('[data-fkey]')].find(x => x.dataset.fkey === fkey);
+      if (el) el.focus();
+    }
+  }
+
+  function renderTracker() {
+    tk.count.textContent = tracked.length ? `${tracked.length} coupon${tracked.length === 1 ? '' : 's'}` : '';
+    const existing = trackState === 'ready' ? currentTracked() : null;
+    tk.save.hidden = trackState === 'off';
+    tk.save.textContent = existing ? 'Update tracked coupon' : 'Track this coupon';
+    tk.save.disabled = trackState !== 'ready' || trackReadOnly || trackSaving || !state.games.some(g => g.home.trim() && g.away.trim());
+    renderTrackSummary();
+    renderTrackList();
+    renderLearning();
+  }
+
+  tk.save.addEventListener('click', async () => {
+    if (trackState !== 'ready' || trackReadOnly || trackSaving) return;
+    const existing = currentTracked();
+    const id = existing ? existing.id : `c-${Date.now().toString(36)}`;
+    const body = trackBody(existing);
+    trackSaving = true;
+    renderTracker();
+    setTrackStatus(existing ? 'Updating the tracked coupon…' : 'Saving the coupon to the track record…', 'busy');
+    const ok = await writeTracked(id, body);
+    trackSaving = false;
+    if (ok) {
+      // Show it straight away; the database's own update follows.
+      if (!tracked.some(c => c.id === id)) tracked.unshift(cleanTracked(id, body));
+      openTracked.add(id);
+      setTrackStatus(existing
+        ? 'Updated with the chances on screen now. Results you had marked are kept.'
+        : 'Saved. Mark the results below once the games are played.', 'done');
+    }
+    renderTracker();
+  });
+
+  tk.list.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    const card = btn && btn.closest('.tcoupon');
+    const c = card && tracked.find(x => x.id === card.dataset.id);
+    if (!c || btn.disabled) return;
+    if (btn.dataset.r !== undefined) {
+      const g = c.games[Number(btn.closest('.tgame').dataset.i)];
+      const r = Number(btn.dataset.r);
+      g.result = g.result === r ? null : r;
+      c.updatedAt = Date.now();
+      relearn();
+      update();
+      writeTracked(c.id, bodyOf(c));
+      return;
+    }
+    if (btn.dataset.act === 'remove') {
+      clearTimeout(armedTimer);
+      if (armedRemove !== c.id) {
+        armedRemove = c.id;
+        armedTimer = setTimeout(() => { armedRemove = ''; renderTracker(); }, 4000);
+        renderTracker();
+        return;
+      }
+      armedRemove = '';
+      tracked = tracked.filter(x => x.id !== c.id);
+      openTracked.delete(c.id);
+      relearn();
+      update();
+      writeTracked(c.id, null);
+    }
+  });
+  // toggle doesn't bubble, so listen in the capture phase to remember which coupons are open.
+  tk.list.addEventListener('toggle', e => {
+    const card = e.target;
+    if (!card.classList || !card.classList.contains('tcoupon')) return;
+    if (card.open) openTracked.add(card.dataset.id); else openTracked.delete(card.dataset.id);
+  }, true);
+
+  // ---- Start-up: find out what this view can do ----
+
+  (async () => {
+    let limits = null;
+    try {
+      sample = window.claude && window.claude.use ? await window.claude.use('sample') : null;
+      limits = sample ? await sample.limits() : null;
+    } catch (e) {
+      limits = null;
+    }
+    if (sample && limits && limits.images) {
+      imageLimits = limits.images;
+      imp.file.accept = imageLimits.mediaTypes.join(',');
+      imp.file.multiple = imageLimits.maxCount > 1;
+      imp.choose.disabled = false;
+      setImportStatus('', '');
+    } else {
+      disableImport('Screenshot import works when this page is open on claude.ai or in the Claude app. You can still type the games in.');
+    }
+  })();
+
+  (async () => {
+    try {
+      db = window.claude && window.claude.use ? await window.claude.use('db') : null;
+    } catch (e) {
+      db = null;
+    }
+    if (!db) {
+      trackState = 'off';
+      setTrackStatus('The track record works when this page is open on claude.ai or in the Claude app.', 'muted');
+      renderTracker();
+      return;
+    }
+    db.collection(TRACK).orderBy('trackedAt', 'desc').limit(100).onSnapshot(snap => {
+      savedDocs = snap.docs;
+      tracked = fromSaved();
+      if (trackState === 'loading') {
+        trackState = 'ready';
+        if (tracked.length) openTracked.add(tracked[0].id);
+        setTrackStatus(tracked.length ? '' : 'Nothing tracked yet. Save a coupon before kick-off, then mark its results afterwards.', 'muted');
+      }
+      relearn();
+      update();
+    }, err => {
+      trackState = 'off';
+      setTrackStatus(err && err.code === 'revoked' ? "The track record isn't available right now."
+        : "Couldn't load the track record. Reload the page to try again.", 'error');
+      renderTracker();
+    });
+  })();
+
+  buildRows();
+  // A coupon Claude has just researched loads by itself the first time the page opens with it. Undo brings
+  // back what was there before, and the same research never loads itself a second time.
+  if (hasResearch() && state.autoLoaded !== RESEARCHED.id && state.researchId !== RESEARCHED.id) {
+    state.autoLoaded = RESEARCHED.id;
+    loadResearched();
+    setResearchStatus(`Claude's new research loaded by itself: ${RESEARCHED.title}. Undo brings back the coupon you had.`, 'done');
+  } else {
+    update();
+  }
+})();
+</script>
+
+</body></html>
