@@ -677,7 +677,7 @@ tr:last-child td { border-bottom: 0; }
       <section class="import" id="import" aria-labelledby="import-title">
         <div class="import-main">
           <h2 class="import-title" id="import-title">Load games from a screenshot</h2>
-          <p class="import-text">Drop a screenshot of your jackpot here, paste it, or choose a file. Claude reads the teams and any odds it shows, and fills in the coupon.</p>
+          <p class="import-text" id="import-text">Drop a screenshot of your jackpot here, paste it, or choose a file. Claude reads the teams and any odds it shows, and fills in the coupon.</p>
         </div>
         <div class="import-actions">
           <button type="button" class="btn primary" id="import-choose" disabled>Choose screenshot</button>
@@ -1681,6 +1681,7 @@ tr:last-child td { border-bottom: 0; }
 
   const imp = {
     zone: $('import'),
+    text: $('import-text'),
     file: $('import-file'),
     choose: $('import-choose'),
     stop: $('import-stop'),
@@ -1704,6 +1705,7 @@ tr:last-child td { border-bottom: 0; }
     refused: "Claude couldn't read games from that image. Try a screenshot of the coupon itself.",
     empty_completion: "Couldn't find games in that screenshot. Try a clearer one, cropped to the coupon.",
     invalid_json: "Couldn't find games in that screenshot. Try a clearer one, cropped to the coupon.",
+    reader_failed: "The screenshot reader couldn't start. Check your internet connection, then try again.",
   };
 
   let sample = null;
@@ -1748,8 +1750,211 @@ tr:last-child td { border-bottom: 0; }
     })).filter(g => g.home || g.away);
   }
 
+  // ---- Screenshot reader for when Claude isn't here ----
+  // Away from claude.ai (on the GitHub Pages copy, say) a text reader in the page reads the screenshot.
+  // It is less accurate than Claude, so the coupon should be checked after loading.
+
+  const READER_JS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  const READER_LANG = 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int';
+  let reader = null;
+
+  function useLocalReader() {
+    imageLimits = { mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], maxInputBytes: 15e6, maxCount: 6 };
+    imp.file.accept = imageLimits.mediaTypes.join(',');
+    imp.file.multiple = true;
+    imp.text.textContent = 'Drop a screenshot of your jackpot here, paste it, or choose a file. This page reads the team names, kick-off times and any odds it can make out, and fills in the coupon.';
+    imp.zone.classList.remove('off');
+    imp.choose.disabled = false;
+    setImportStatus('', '');
+  }
+
+  function getReader() {
+    if (!reader) {
+      reader = new Promise((ok, fail) => {
+        if (window.Tesseract) return ok();
+        const s = document.createElement('script');
+        s.src = READER_JS;
+        s.onload = ok;
+        s.onerror = fail;
+        document.head.appendChild(s);
+      }).then(() => window.Tesseract.createWorker('eng', 1, { langPath: READER_LANG }));
+      reader.catch(() => { reader = null; });
+    }
+    return reader;
+  }
+
+  // Small screenshots read far better at twice the size, in grey.
+  async function readerImage(file) {
+    let img;
+    try {
+      img = await createImageBitmap(file);
+    } catch (e) {
+      throw { code: 'image_rejected' };
+    }
+    const scale = img.width < 1000 ? 2 : 1;
+    const c = document.createElement('canvas');
+    c.width = img.width * scale;
+    c.height = img.height * scale;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    const px = ctx.getImageData(0, 0, c.width, c.height);
+    const d = px.data;
+    for (let i = 0; i < d.length; i += 4) d[i] = d[i + 1] = d[i + 2] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    ctx.putImageData(px, 0, 0);
+    return c;
+  }
+
+  // Turns the reader's words, with their positions, into games. Handles "Home vs Away" on one line,
+  // home and away side by side, and home above away (as most betting sites list them).
+  function gamesFromWords(words) {
+    const TIME = /^([01]?\d|2[0-3]):([0-5]\d)$/; // colon only: 3.40 is odds, not a time
+    const DOT_TIME = /^([01]\d|2[0-3])\.([0-5]\d)$/; // the reader often sees 20:00 as 20.00
+    const DATE = /(?:^|\D)(\d{1,2}[/\-]\d{1,2})(?:[/\-]\d{2,4})?$/;
+    const ODD = /^\d{1,3}[.,]\d{1,2}$/;
+    const BARE_ODD = /^\d{3,4}$/; // odds whose decimal point the reader missed, e.g. 255 for 2.55
+    const CONN = /^(vs\.?|v|-|–|—)$/i;
+    const NOISE = /^(live|draw|id|odds|home|away|tips?|more|bet|stats?|results?|today|tomorrow|ft|ht|games?|match(es)?|fixtures?|jackpot|picks?|total|mon|tue|wed|thu|fri|sat|sun|(mon|tues|wednes|thurs|fri|satur|sun)day|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)$/i;
+    // Words that turn up in sentences but not in team names, so a line holding one is text, not a team.
+    const PROSE = /^(the|an|of|to|in|on|at|by|for|from|with|your|you|it|its|this|that|when|where|is|are|was|be|can|will|or|not|any|all|here|there|if|we|our|my)$/i;
+
+    const all = words.map(w => {
+      const raw = w.text.trim();
+      let text = raw.replace(/^[^\p{L}\d]+|[^\p{L}\d.]+$/gu, '').replace(/(\d)\.$|^(\p{L})\.$/u, '$1$2');
+      const { x0, y0, x1, y1 } = w.bbox;
+      const letters = (text.match(/\p{L}/gu) || []).length;
+      let kind = 'junk';
+      if (TIME.test(text)) kind = 'time';
+      else if (DATE.test(text)) { kind = 'date'; text = text.match(DATE)[1]; }
+      else if (ODD.test(text) && parseFloat(text.replace(',', '.')) > 1) kind = 'odd';
+      else if (BARE_ODD.test(text)) kind = 'bare';
+      else if (CONN.test(raw)) kind = w.confidence >= 50 ? 'conn' : 'junk';
+      else if (letters >= 2 && !NOISE.test(text) && !raw.endsWith(':') && (w.confidence >= 50 || letters >= 4)) kind = 'name';
+      return { text, raw, kind, x0, x1, cy: (y0 + y1) / 2, h: y1 - y0 };
+    });
+    const hs = all.filter(t => t.kind === 'name').map(t => t.h).sort((a, b) => a - b);
+    const H = hs.length ? hs[hs.length >> 1] : 12;
+    // Team badges and icons come out as tall scraps of junk; drop them.
+    const toks = all.filter(t => t.kind !== 'junk' && t.h < H * 2.5);
+
+    // Rows: words whose middles sit within about half a line of each other.
+    const rows = [];
+    for (const t of [...toks].sort((a, b) => a.cy - b.cy)) {
+      const row = rows[rows.length - 1];
+      if (row && Math.abs(t.cy - row.cy) < H * 0.55) {
+        row.toks.push(t);
+        row.cy = row.toks.reduce((s, u) => s + u.cy, 0) / row.toks.length;
+      } else rows.push({ cy: t.cy, toks: [t] });
+    }
+
+    const games = [];
+    const stacked = [];
+    for (const row of rows) {
+      // Segments: runs of name words, and any vs or dash between them, with small gaps.
+      row.toks.sort((a, b) => a.x0 - b.x0);
+      const segs = [];
+      let cur = null;
+      for (const t of row.toks) {
+        if (cur && t.x0 - cur.x1 < H * 1.6 && (t.kind === 'name' || t.kind === 'conn')) {
+          cur.toks.push(t);
+          cur.x1 = t.x1;
+        } else {
+          cur = t.kind === 'name' ? { toks: [t], x0: t.x0, x1: t.x1 } : null;
+          if (cur) segs.push(cur);
+        }
+      }
+      // A line that reads like a sentence is page text, not teams. Short capitals such as IF and IS
+      // are club suffixes (AIK IF), not words.
+      const prose = t => PROSE.test(t.text) && !(t.text.length <= 2 && t.text === t.text.toUpperCase());
+      if (segs.some(s => s.toks.length > 9 || s.toks.some(prose) || /\p{L}{4}\.$/u.test(s.toks[s.toks.length - 1].raw))) continue;
+      const named = [];
+      let inline = false;
+      for (const s of segs) {
+        const at = s.toks.findIndex(t => t.kind === 'conn');
+        const names = list => list.filter(t => t.kind === 'name');
+        const home = names(at > 0 ? s.toks.slice(0, at) : s.toks);
+        const away = at > 0 ? names(s.toks.slice(at + 1)) : [];
+        if (home.length && away.length) {
+          games.push({ home, away, y0: row.cy - H, y1: row.cy + H, left: home[0].x0, right: away[away.length - 1].x1 });
+          inline = true;
+        } else if (home.length) named.push({ toks: home, x0: home[0].x0, x1: home[home.length - 1].x1, cy: row.cy });
+      }
+      if (inline) continue;
+      if (named.length === 2 && named[1].x0 - named[0].x1 > H * 3) {
+        games.push({ home: named[0].toks, away: named[1].toks, y0: row.cy - H, y1: row.cy + H, left: named[0].x0, right: named[0].x1 });
+      } else if (named.length) stacked.push(named[0]);
+    }
+
+    // Home above away: keep the names that share the most common left edge, then pair them top to bottom.
+    let column = [];
+    for (const s of stacked) {
+      const col = stacked.filter(o => Math.abs(o.x0 - s.x0) <= H * 2);
+      if (col.length > column.length) column = col;
+    }
+    column.sort((a, b) => a.cy - b.cy);
+    for (let i = 0; i + 1 < column.length; ) {
+      const a = column[i], b = column[i + 1];
+      if (b.cy - a.cy < H * 3.4) {
+        games.push({ home: a.toks, away: b.toks, y0: a.cy - H * 1.2, y1: b.cy + H * 1.2, left: Math.min(a.x0, b.x0), right: Math.max(a.x1, b.x1) });
+        i += 2;
+      } else i += 1;
+    }
+
+    const name = list => {
+      const s = list.map(t => t.text).join(' ');
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    };
+    const near = (g, kinds) => toks.filter(t => kinds.includes(t.kind) && t.cy >= g.y0 && t.cy <= g.y1);
+    // The first three numbers right of the names, kept only if they look like a real 1X2 market.
+    const oddsOf = g => {
+      const o = near(g, ['odd', 'bare']).filter(t => t.x0 > g.right).sort((a, b) => a.x0 - b.x0).slice(0, 3)
+        .map(t => t.kind === 'bare' ? Number(t.text.slice(0, -2) + '.' + t.text.slice(-2)) : Number(t.text.replace(',', '.')));
+      const book = o.reduce((s, x) => s + 1 / x, 0);
+      return o.length === 3 && o.every(x => x > 1 && x < 100) && book > 0.98 && book < 1.2 ? o : [null, null, null];
+    };
+    return games.sort((a, b) => a.y0 - b.y0).map(g => {
+      const time = near(g, ['time'])[0] || near(g, ['odd']).find(t => t.x1 <= g.left && DOT_TIME.test(t.text));
+      const date = near(g, ['date'])[0];
+      return {
+        home: name(g.home),
+        away: name(g.away),
+        when: [date && date.text, time && time.text.replace('.', ':')].filter(Boolean).join(' '),
+        odds: oddsOf(g),
+      };
+    }).filter(g => g.home.length >= 3 && g.away.length >= 3 && g.home !== g.away);
+  }
+
+  async function readLocally(files, signal) {
+    const stopped = new Promise((_, fail) => signal.addEventListener('abort', () => fail({ code: 'cancelled' }), { once: true }));
+    stopped.catch(() => {});
+    const games = [];
+    const seen = new Set();
+    try {
+      const worker = await Promise.race([getReader(), stopped]);
+      for (const [i, file] of files.entries()) {
+        setImportStatus(files.length > 1 ? `Reading screenshot ${i + 1} of ${files.length}…` : 'Reading your screenshot…', 'busy');
+        const work = readerImage(file).then(c => worker.recognize(c));
+        work.catch(() => {}); // after a stop, the abandoned read fails quietly
+        const { data } = await Promise.race([work, stopped]);
+        // Screenshots of one coupon often overlap, so keep each game once.
+        for (const g of gamesFromWords(data.words)) {
+          const key = `${g.home}|${g.away}`.toLowerCase();
+          if (!seen.has(key)) { seen.add(key); games.push(g); }
+        }
+      }
+    } catch (e) {
+      if (signal.aborted && reader) {
+        // A stopped read can't be cut short, so throw this reader away and start a fresh one next time.
+        reader.then(w => w.terminate()).catch(() => {});
+        reader = null;
+      }
+      throw e && e.code ? e : { code: 'reader_failed' };
+    }
+    return { games };
+  }
+
   async function importImages(fileList) {
-    if (!sample || !imageLimits || importCtl) return;
+    if (!imageLimits || importCtl) return;
     const files = [...fileList].filter(f => f.type.startsWith('image/'));
     if (!files.length) {
       setImportStatus("That isn't an image. Use a PNG or JPEG screenshot.", 'error');
@@ -1765,16 +1970,18 @@ tr:last-child td { border-bottom: 0; }
 
     importCtl = new AbortController();
     setImportBusy(true);
-    setImportStatus(`Reading ${usable.length > 1 ? `${usable.length} screenshots` : 'your screenshot'}. This can take up to a minute.`, 'busy');
+    setImportStatus(sample
+      ? `Reading ${usable.length > 1 ? `${usable.length} screenshots` : 'your screenshot'}. This can take up to a minute.`
+      : 'Getting the screenshot reader ready. The first time takes a few seconds.', 'busy');
     try {
-      const data = await sample.json(IMPORT_PROMPT, {
+      const data = sample ? await sample.json(IMPORT_PROMPT, {
         images: usable,
         signal: importCtl.signal,
         onText: ({ text }) => {
           const n = (text.match(/"home"/g) || []).length;
           if (n) setImportStatus(`Found ${n} game${n === 1 ? '' : 's'} so far…`, 'busy');
         },
-      });
+      }) : await readLocally(usable, importCtl.signal);
       const games = cleanImported(data);
       if (!games.length) {
         setImportStatus("Couldn't find any games in that screenshot. Try one that shows the team names clearly.", 'error');
@@ -1788,7 +1995,7 @@ tr:last-child td { border-bottom: 0; }
       buildRows();
       save();
       update();
-      setImportStatus(`Loaded ${games.length} game${games.length === 1 ? '' : 's'}. Check the teams, then send the screenshot to Claude in the chat for a results model and team news, or rate the games yourself under Team news.`, 'done');
+      setImportStatus(`Loaded ${games.length} game${games.length === 1 ? '' : 's'}. ${sample ? 'Check the teams' : 'Check the teams and times against your coupon, as the reader can get letters wrong'}, then send the screenshot to Claude in the chat for a results model and team news, or rate the games yourself under Team news.`, 'done');
       imp.undo.hidden = false;
     } catch (e) {
       const code = e && e.code;
@@ -2485,7 +2692,8 @@ tr:last-child td { border-bottom: 0; }
       imp.choose.disabled = false;
       setImportStatus('', '');
     } else {
-      disableImport('Screenshot import works when this page is open on claude.ai or in the Claude app. You can still type the games in.');
+      sample = null;
+      useLocalReader();
     }
   })();
 

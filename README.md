@@ -11,9 +11,13 @@ Use it online at https://efrederickkofi-hue.github.io/jackpot-calculator/, or op
 - **Best ticket**: for any number of lines it picks which games to double or triple, and shows how many games you're likely to get right.
 - **What more lines buy**: a table of the best ticket for 1 to 256 lines.
 
+## Loading games from a screenshot
+
+On claude.ai or in the Claude app, Claude reads the screenshot. Anywhere else, such as the GitHub Pages link, a text reader built into the page does it ([Tesseract.js](https://github.com/naptha/tesseract.js), about 3 MB, downloaded the first time you use it). It reads team names well, but it can get a letter, a kick-off time or the odds wrong, so check the coupon after loading. Odds it can't read cleanly are left blank.
+
 ## Works only on claude.ai
 
-Loading games from a screenshot and the track record (saving coupons, marking results and learning from them) use Claude's artifact features. They work when the calculator is open on claude.ai or in the Claude app. Here the page says so, and you can still type games in by hand.
+The track record (saving coupons, marking results and learning from them) uses Claude's artifact features, so it works only when the calculator is open on claude.ai or in the Claude app.
 
 Your coupon, line count and settings are saved in your own browser.
 
