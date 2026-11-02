@@ -2,7 +2,7 @@
 
 A one-page calculator for 12-game football jackpots (1 X 2). For each game it works out the chance of a home win, draw and away win from the teams' results, then finds the best mix of singles, doubles and triples for the number of lines you want to pay for, and shows your chance of getting every game right.
 
-Open `index.html` in a browser, or use the GitHub Pages link for this repository.
+Use it online at https://efrederickkofi-hue.github.io/jackpot-calculator/, or open `index.html` in a browser.
 
 ## What it does
 
